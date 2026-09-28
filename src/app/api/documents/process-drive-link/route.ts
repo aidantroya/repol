@@ -32,9 +32,14 @@ export async function POST(req: Request) {
       );
 
       if (folderFiles.length === 0) {
+        const hasApiKey = Boolean(process.env.GOOGLE_DRIVE_API_KEY);
+        const errorMsg = hasApiKey
+          ? "No se encontraron archivos en la carpeta de Google Drive. Asegúrate de que la carpeta o sus subcarpetas contengan documentos y que esté en modo público ('Cualquier persona con el enlace')."
+          : "No se pudieron extraer los archivos automáticamente. Para explorar carpetas y subcarpetas con la API oficial v3 de Google Drive, agrega la variable GOOGLE_DRIVE_API_KEY en tu archivo .env o en el panel de Vercel. También puedes subir los archivos PDF/DOCX directamente o usar sus enlaces individuales.";
+
         return NextResponse.json(
           {
-            error: "No se encontraron archivos en la carpeta de Google Drive. Asegúrate de que contenga documentos y que los permisos estén configurados como públicos ('Cualquier persona con el enlace').",
+            error: errorMsg,
             debugLogs,
           },
           { status: 404 }

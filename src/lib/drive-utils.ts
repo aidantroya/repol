@@ -204,19 +204,39 @@ export async function fetchGoogleDriveFolderFiles(
   const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
   const allItems: DriveItem[] = [];
 
-  // 1. Si existe API Key de Google Drive, usar API oficial v3
+  // 1. Si existe API Key de Google Drive, usar API oficial v3 de Google (método idéntico a google-api-python-client)
   if (apiKey) {
     try {
-      const apiUrl = `https://www.googleapis.com/drive/v3/files?q='${folderId}'+in+parents+and+trashed=false&fields=files(id,name,mimeType,size)&key=${apiKey}`;
-      const res = await fetch(apiUrl);
-      if (res.ok) {
+      let pageToken: string | undefined = undefined;
+      do {
+        const queryParams = new URLSearchParams({
+          q: `'${folderId}' in parents and trashed = false`,
+          fields: "files(id, name, mimeType, size, webViewLink, webContentLink), nextPageToken",
+          pageSize: "1000",
+          supportsAllDrives: "true",
+          includeItemsFromAllDrives: "true",
+          key: apiKey,
+        });
+        if (pageToken) {
+          queryParams.set("pageToken", pageToken);
+        }
+
+        const apiUrl = `https://www.googleapis.com/drive/v3/files?${queryParams.toString()}`;
+        const res = await fetch(apiUrl);
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(`Error API Drive v3 (${res.status}): ${errData.error?.message || res.statusText}`);
+        }
+
         const data = await res.json();
         if (data.files && Array.isArray(data.files)) {
-          debugLogs.push(`[API v3] Folder ${folderId} returned ${data.files.length} items`);
+          debugLogs.push(`[API v3] Carpeta ${folderId} retornó ${data.files.length} elementos`);
           for (const f of data.files) {
             const isFolder = f.mimeType === "application/vnd.google-apps.folder";
             if (isFolder) {
               const subPath = currentPath ? `${currentPath} / ${f.name}` : f.name;
+              debugLogs.push(`[API v3 Subcarpeta] Entrando a: ${subPath} (${f.id})`);
               const subFiles = await fetchGoogleDriveFolderFiles(
                 f.id,
                 subPath,
@@ -227,6 +247,7 @@ export async function fetchGoogleDriveFolderFiles(
               );
               allItems.push(...subFiles);
             } else {
+              debugLogs.push(`[API v3 Archivo] Encontrado: ${f.name} (${f.id})`);
               allItems.push({
                 id: f.id,
                 name: f.name,
@@ -236,11 +257,13 @@ export async function fetchGoogleDriveFolderFiles(
               });
             }
           }
-          return allItems;
         }
-      }
+        pageToken = data.nextPageToken;
+      } while (pageToken);
+
+      return allItems;
     } catch (err) {
-      debugLogs.push(`[API v3 Error] ${String(err)}`);
+      debugLogs.push(`[API v3 Error] ${err instanceof Error ? err.message : String(err)}`);
     }
   }
 
