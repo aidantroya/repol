@@ -1,0 +1,212 @@
+// Schema de Prisma para RePol (ESPOL) con soporte de Materias Compartidas (Many-to-Many)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STUDENT
+  MODERATOR
+  ADMIN
+}
+
+enum DocumentCategory {
+  CLASE
+  LECCION
+  TALLER
+  EXAMEN
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PromotionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id                    String                   @id @default(cuid())
+  name                  String?
+  email                 String                   @unique
+  emailVerified         DateTime?
+  image                 String?
+  role                  Role                     @default(STUDENT)
+  approvedContributions Int                      @default(0)
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  documents             Document[]               @relation("UploadedDocuments")
+  submissions           Submission[]             @relation("UserSubmissions")
+  reviewedSubmissions   Submission[]             @relation("ReviewedSubmissions")
+  promotionRequests     AdminPromotionRequest[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String? @db.Text
+  access_token       String? @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String? @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Career {
+  id          String          @id @default(cuid())
+  name        String          @unique
+  code        String          @unique // Ej: COMP, MECA, IND, CIV, ELEC
+  slug        String          @unique
+  faculty     String?         // FIEC, FIMCP, FICT, FCNM, FCSH, FADCOM, FIMCM
+  description String?
+  icon        String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  subjects    CareerSubject[]
+}
+
+model Subject {
+  id          String          @id @default(cuid())
+  name        String
+  code        String          @unique // Código oficial ESPOL (ej: MATG1001, CCPG1005, FISG1002)
+  slug        String          @unique
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  careers     CareerSubject[]
+  documents   Document[]
+  submissions Submission[]
+}
+
+// Tabla intermedia que relaciona Carreras y Materias compartidas
+model CareerSubject {
+  id        String   @id @default(cuid())
+  careerId  String
+  subjectId String
+  semester  Int      @default(1)
+
+  career    Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  @@unique([careerId, subjectId])
+  @@index([careerId])
+  @@index([subjectId])
+}
+
+model Document {
+  id                String           @id @default(cuid())
+  title             String
+  description       String?
+  fileHash          String           @unique // Hash SHA-256 para evitar duplicados
+  fileSize          Int
+  mimeType          String
+  storageKey        String           // Clave en Cloudflare R2 o Google Drive ID
+  fileUrl           String           // URL de acceso / descarga / preview
+  
+  category          DocumentCategory
+  subcategory       String           // "Lección 1", "Taller 3", "Parcial", "Otro", etc.
+  customDescription String?          // Detalle cuando se selecciona "Otro"
+  
+  periodYear        Int              // Ej. 2025
+  periodTerm        String           // Ej. "1T", "2T", "3T", "Intensivo"
+  downloadCount     Int              @default(0)
+  attachments       Json?            // Lista de archivos adjuntos complementarios [{ name, fileUrl, fileSize, mimeType }]
+
+  subjectId         String
+  subject           Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  uploadedById      String
+  uploadedBy        User             @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([subjectId, category])
+  @@index([fileHash])
+}
+
+model Submission {
+  id                String           @id @default(cuid())
+  title             String
+  description       String?
+  fileHash          String           // Hash SHA-256 del archivo principal
+  fileSize          Int
+  mimeType          String
+  storageKey        String
+  fileUrl           String
+  attachments       Json?            // Archivos adjuntos complementarios [{ name, fileUrl, fileSize, mimeType }]
+
+  category          DocumentCategory
+  subcategory       String
+  customDescription String?
+  periodYear        Int
+  periodTerm        String
+
+  status            SubmissionStatus @default(PENDING)
+  rejectionReason   String?          @db.Text
+
+  subjectId         String
+  subject           Subject          @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  userId            String
+  user              User             @relation("UserSubmissions", fields: [userId], references: [id], onDelete: Cascade)
+
+  reviewedById      String?
+  reviewedBy        User?            @relation("ReviewedSubmissions", fields: [reviewedById], references: [id])
+
+  createdAt         DateTime         @default(now())
+  reviewedAt        DateTime?
+
+  @@index([status])
+  @@index([fileHash])
+}
+
+model AdminPromotionRequest {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status      PromotionStatus @default(PENDING)
+  reason      String?         @db.Text
+  createdAt   DateTime        @default(now())
+  reviewedAt  DateTime?
+
+  @@index([userId, status])
+}

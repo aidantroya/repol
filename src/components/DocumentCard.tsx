@@ -1,0 +1,198 @@
+"use client";
+
+import { useState } from "react";
+import { 
+  Download, 
+  Eye, 
+  Calendar, 
+  GraduationCap, 
+  User,
+  Share2,
+  Paperclip
+} from "lucide-react";
+import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+import { PdfViewerModal } from "./PdfViewerModal";
+
+export interface AttachmentItem {
+  name: string;
+  fileUrl: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+export interface DocumentItem {
+  id: string;
+  title: string;
+  description?: string | null;
+  fileHash: string;
+  fileSize: number;
+  mimeType: string;
+  fileUrl: string;
+  attachments?: AttachmentItem[] | null;
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  subcategory: string;
+  customDescription?: string | null;
+  periodYear: number;
+  periodTerm: string;
+  downloadCount: number;
+  createdAt: string | Date;
+  subject: {
+    name: string;
+    code: string;
+    careers?: Array<{
+      career: {
+        name: string;
+        code: string;
+      };
+    }>;
+  };
+  uploadedBy?: {
+    name?: string | null;
+    image?: string | null;
+    approvedContributions?: number;
+  };
+}
+
+export function DocumentCard({ doc }: { doc: DocumentItem }) {
+  const [downloads, setDownloads] = useState(doc.downloadCount);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+
+  const handleDownload = async () => {
+    setIsDownloading(true);
+    try {
+      await fetch("/api/documents", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id }),
+      });
+      setDownloads((prev) => prev + 1);
+      window.open(doc.fileUrl, "_blank");
+    } catch (e) {
+      console.error("Error al registrar descarga:", e);
+      window.open(doc.fileUrl, "_blank");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const careersList = doc.subject.careers || [];
+  const primaryCareerName = careersList.length > 0 ? careersList[0].career.name : "ESPOL";
+  const extraCareersCount = careersList.length > 1 ? careersList.length - 1 : 0;
+
+  return (
+    <>
+      <div className="group relative flex flex-col justify-between rounded-2xl border border-zinc-800/80 bg-zinc-900/60 p-5 backdrop-blur-sm transition-all duration-300 hover:border-zinc-700 hover:bg-zinc-900/90 hover:shadow-xl hover:shadow-blue-500/5">
+        
+        {/* Cabecera de la tarjeta: Categoría y Subcategoría */}
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <span
+                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider ${getCategoryBadgeColor(
+                  doc.category
+                )}`}
+              >
+                {getCategoryLabel(doc.category)}
+              </span>
+              <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-300 border border-zinc-700">
+                {doc.subcategory}
+              </span>
+              {doc.attachments && doc.attachments.length > 0 && (
+                <span
+                  className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-400 border border-amber-500/20"
+                  title={`${doc.attachments.length} archivo(s) complementario(s) adjunto(s)`}
+                >
+                  <Paperclip className="h-3 w-3" />
+                  <span>+{doc.attachments.length}</span>
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
+              <Calendar className="h-3.5 w-3.5 text-zinc-500" />
+              <span>{doc.periodYear} - {doc.periodTerm}</span>
+            </div>
+          </div>
+
+          {/* Título del documento */}
+          <button
+            onClick={() => setIsViewerOpen(true)}
+            className="text-left w-full text-base font-semibold text-zinc-100 group-hover:text-blue-400 transition-colors line-clamp-2"
+          >
+            {doc.title}
+          </button>
+
+          {/* Descripción opcional o descripción personalizada si es "Otro" */}
+          {(doc.customDescription || doc.description) && (
+            <p className="mt-2 text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+              {doc.customDescription || doc.description}
+            </p>
+          )}
+
+          {/* Información de Materia y Carreras Compartidas */}
+          <div className="mt-4 flex flex-col gap-1.5 rounded-xl bg-zinc-950/60 p-3 border border-zinc-800/60">
+            <div className="flex items-center gap-2 text-xs text-zinc-300 font-medium">
+              <GraduationCap className="h-4 w-4 text-blue-400 shrink-0" />
+              <span className="truncate">{doc.subject.name}</span>
+              <span className="rounded bg-blue-500/10 px-1.5 py-0.2 text-[10px] font-mono text-blue-400 border border-blue-500/20 font-semibold shrink-0">
+                {doc.subject.code}
+              </span>
+            </div>
+
+            {/* Carreras que comparten esta materia */}
+            <div className="text-[11px] text-zinc-400 truncate pl-6 flex items-center gap-1.5">
+              <span className="truncate">{primaryCareerName}</span>
+              {extraCareersCount > 0 && (
+                <span
+                  className="rounded-full bg-zinc-800 px-1.5 py-0.2 text-[10px] font-bold text-zinc-300 border border-zinc-700 shrink-0 flex items-center gap-0.5"
+                  title={careersList.map((c) => c.career.name).join(", ")}
+                >
+                  <Share2 className="h-2.5 w-2.5 text-blue-400" /> +{extraCareersCount} carreras
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Pie de tarjeta: Autor, peso, y botones */}
+        <div className="mt-5 pt-4 border-t border-zinc-800/80">
+          <div className="flex items-center justify-between text-xs text-zinc-400 mb-3.5">
+            <div className="flex items-center gap-1.5 truncate max-w-[180px]">
+              <User className="h-3.5 w-3.5 text-zinc-500" />
+              <span className="truncate">{doc.uploadedBy?.name || "Colaborador"}</span>
+            </div>
+            <span className="text-[11px] text-zinc-500 font-mono">{formatBytes(doc.fileSize)}</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsViewerOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-blue-600/15 border border-blue-500/30 px-3 py-2 text-xs font-semibold text-blue-400 hover:bg-blue-600 hover:text-white transition-all active:scale-98"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>Ver Documento</span>
+            </button>
+
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-400 hover:text-white hover:border-zinc-700 transition"
+              title={`Descargar (${downloads} descargas)`}
+            >
+              <Download className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modal de visualización de PDF */}
+      <PdfViewerModal
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        document={doc}
+        onDownload={() => setDownloads((prev) => prev + 1)}
+      />
+    </>
+  );
+}

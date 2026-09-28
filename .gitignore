@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch and temp files
+scratch_*
+espol_raw_*
+espol_malla_*
+espol_processed_*
+espol_complete_*
+extracted_samples.json
+fict_careers.json
+generate_espol_pdf.cjs
