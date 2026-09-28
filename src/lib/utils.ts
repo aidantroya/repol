@@ -54,10 +54,10 @@ export async function calculateSHA256(file: File): Promise<string> {
 export function formatPeriodTerm(term: string): string {
   if (!term) return "1PAO";
   const upper = term.toUpperCase().trim();
-  if (upper === "1T" || upper === "1PAO" || upper === "1-PAO" || upper === "1 PAO") return "1PAO";
-  if (upper === "2T" || upper === "2PAO" || upper === "2-PAO" || upper === "2 PAO") return "2PAO";
-  if (upper === "3T" || upper === "3PAO" || upper === "3-PAO" || upper === "3 PAO") return "3PAO";
-  if (upper === "INTENSIVO" || upper === "VACACIONAL") return "Intensivo";
+  if (upper === "1T" || upper === "1PAO" || upper === "1-PAO" || upper === "1 PAO" || upper === "1") return "1PAO";
+  if (upper === "2T" || upper === "2PAO" || upper === "2-PAO" || upper === "2 PAO" || upper === "2") return "2PAO";
+  if (upper === "PAE" || upper === "3T" || upper === "3PAO" || upper === "INTENSIVO" || upper === "VACACIONAL") return "PAE";
   return term;
 }
+
 

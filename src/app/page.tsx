@@ -154,10 +154,9 @@ export default function HomePage() {
   // Agrupación jerárquica de documentos por Materia -> Carpetas de Categorías
   const groupedData = useMemo(() => {
     const termOrder: Record<string, number> = {
-      "3PAO": 3, "3T": 3,
+      "PAE": 3, "3PAO": 3, "3T": 3, "Intensivo": 3,
       "2PAO": 2, "2T": 2,
       "1PAO": 1, "1T": 1,
-      "Intensivo": 0,
     };
     
     // Sort comparator

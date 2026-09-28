@@ -261,11 +261,11 @@ export function EditDocumentModal({
               </select>
             </div>
 
-            {/* Término / PAO */}
+            {/* Período Académico: 1PAO, 2PAO, PAE */}
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
                 <Layers className="h-3.5 w-3.5 text-blue-400" />
-                Período Académico (PAO) *
+                Período Académico *
               </label>
               <select
                 value={periodTerm}
@@ -274,8 +274,7 @@ export function EditDocumentModal({
               >
                 <option value="1PAO">1PAO (Primer PAO)</option>
                 <option value="2PAO">2PAO (Segundo PAO)</option>
-                <option value="3PAO">3PAO (Tercer PAO)</option>
-                <option value="Intensivo">Intensivo (Vacacional)</option>
+                <option value="PAE">PAE (Periodo Extraordinario)</option>
               </select>
             </div>
 
