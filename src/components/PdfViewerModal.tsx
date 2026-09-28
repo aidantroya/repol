@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft } from "lucide-react";
+import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft, Flag } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+import { ReportDocumentModal } from "./ReportDocumentModal";
 
 export interface AttachmentItem {
   name: string;
@@ -47,6 +48,7 @@ interface PdfViewerModalProps {
 export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: PdfViewerModalProps) {
   const [showAttachments, setShowAttachments] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -156,6 +158,15 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
           >
             <ExternalLink className="h-4 w-4" />
           </a>
+
+          {/* Botón de reporte rápido */}
+          <button
+            onClick={() => setIsReportOpen(true)}
+            className="flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-800 hover:border-rose-500/40 hover:bg-rose-500/10 hover:text-rose-400 p-2 text-zinc-400 transition"
+            title="Reportar error, link caído o solicitar retiro"
+          >
+            <Flag className="h-4 w-4" />
+          </button>
         </div>
       </div>
 
@@ -232,6 +243,13 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
           </div>
         )}
       </div>
+
+      {/* Modal de Reporte */}
+      <ReportDocumentModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        document={doc}
+      />
 
     </div>
   );

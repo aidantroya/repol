@@ -34,6 +34,21 @@ enum PromotionStatus {
   REJECTED
 }
 
+enum ReportReason {
+  BROKEN_LINK
+  NOT_FOUND_404
+  WRONG_CONTENT
+  TAKEDOWN_REQUEST
+  LOW_QUALITY
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
+
 model User {
   id                    String                   @id @default(cuid())
   name                  String?
@@ -51,6 +66,7 @@ model User {
   submissions           Submission[]             @relation("UserSubmissions")
   reviewedSubmissions   Submission[]             @relation("ReviewedSubmissions")
   promotionRequests     AdminPromotionRequest[]
+  reports               DocumentReport[]
 }
 
 model Account {
@@ -156,6 +172,8 @@ model Document {
   uploadedById      String
   uploadedBy        User             @relation("UploadedDocuments", fields: [uploadedById], references: [id])
 
+  reports           DocumentReport[]
+
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -210,3 +228,26 @@ model AdminPromotionRequest {
 
   @@index([userId, status])
 }
+
+model DocumentReport {
+  id            String        @id @default(cuid())
+  documentId    String
+  document      Document      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  
+  reason        ReportReason
+  details       String?       @db.Text
+  reporterEmail String?
+  
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  status        ReportStatus  @default(PENDING)
+  notes         String?       @db.Text
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([documentId])
+  @@index([status])
+}
+

@@ -12,9 +12,43 @@ import {
   GraduationCap, 
   Award,
   Sparkles,
-  Paperclip
+  Paperclip,
+  Flag,
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 import { getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+
+interface ReportItem {
+  id: string;
+  documentId: string;
+  reason: "BROKEN_LINK" | "NOT_FOUND_404" | "WRONG_CONTENT" | "TAKEDOWN_REQUEST" | "LOW_QUALITY" | "OTHER";
+  details?: string | null;
+  reporterEmail?: string | null;
+  status: "PENDING" | "RESOLVED" | "DISMISSED";
+  createdAt: string;
+  document: {
+    id: string;
+    title: string;
+    fileUrl: string;
+    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+    subcategory: string;
+    periodYear: number;
+    periodTerm: string;
+    subject: {
+      name: string;
+      code: string;
+    };
+    uploadedBy?: {
+      name?: string | null;
+      email?: string | null;
+    };
+  };
+  user?: {
+    name?: string | null;
+    email?: string | null;
+  };
+}
 
 interface Submission {
   id: string;
@@ -74,9 +108,10 @@ export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"submissions" | "promotions">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports">("submissions");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [promotions, setPromotions] = useState<PromotionRequest[]>([]);
+  const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -97,16 +132,19 @@ export default function AdminDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [subRes, promRes] = await Promise.all([
+      const [subRes, promRes, repRes] = await Promise.all([
         fetch("/api/admin/submissions?status=PENDING"),
         fetch("/api/admin/promotions"),
+        fetch("/api/reports?status=PENDING"),
       ]);
 
       const subData = await subRes.json();
       const promData = await promRes.json();
+      const repData = await repRes.json();
 
       if (subData.submissions) setSubmissions(subData.submissions);
       if (promData.requests) setPromotions(promData.requests);
+      if (repData.reports) setReports(repData.reports);
     } catch (e) {
       console.error("Error al cargar datos de admin:", e);
     } finally {
@@ -119,6 +157,52 @@ export default function AdminDashboardPage() {
       loadData();
     }
   }, [isAdmin]);
+
+  const handleDeleteReportDoc = async (reportId: string, docId: string, docTitle: string) => {
+    if (!window.confirm(`¿Confirmas la eliminación definitiva de "${docTitle}" y resolución del reporte?`)) {
+      return;
+    }
+    setActionLoading(reportId);
+    try {
+      const delRes = await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: docId }),
+      });
+
+      await fetch("/api/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId, status: "RESOLVED" }),
+      });
+
+      if (delRes.ok) {
+        setReports((prev) => prev.filter((r) => r.id !== reportId));
+      }
+    } catch (e) {
+      console.error("Error al eliminar documento reportado:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDismissReport = async (reportId: string) => {
+    setActionLoading(reportId);
+    try {
+      const res = await fetch("/api/reports", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId, status: "DISMISSED" }),
+      });
+      if (res.ok) {
+        setReports((prev) => prev.filter((r) => r.id !== reportId));
+      }
+    } catch (e) {
+      console.error("Error al descartar reporte:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleApproveSubmission = async (submissionId: string) => {
     setActionLoading(submissionId);
@@ -240,6 +324,21 @@ export default function AdminDashboardPage() {
             <span>Ascensos a Admin</span>
             <span className="rounded-full bg-zinc-950 px-2 py-0.5 text-[11px] font-bold text-amber-300">
               {promotions.filter((p) => p.status === "PENDING").length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("reports")}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+              activeTab === "reports"
+                ? "bg-rose-600 text-white shadow-md shadow-rose-500/20"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Flag className="h-3.5 w-3.5" />
+            <span>Reportes</span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reports.length > 0 ? "bg-rose-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
+              {reports.length}
             </span>
           </button>
         </div>
@@ -424,6 +523,134 @@ export default function AdminDashboardPage() {
                   </div>
                 </div>
               ))
+          )}
+        </div>
+      )}
+
+      {/* Pestaña 3: Reportes de Documentos & Solicitudes de Retiro */}
+      {activeTab === "reports" && (
+        <div>
+          {reports.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-400 mb-4">
+                <Check className="h-7 w-7 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">¡No hay reportes pendientes!</h3>
+              <p className="text-sm text-zinc-400 mt-1">
+                No existen incidencias ni solicitudes de retiro sin procesar en este momento.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reports.map((rep) => {
+                const getReasonBadge = (reason: string) => {
+                  switch (reason) {
+                    case "BROKEN_LINK":
+                      return { text: "Link Caído", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
+                    case "NOT_FOUND_404":
+                      return { text: "Error 404", cls: "bg-rose-500/10 text-rose-400 border-rose-500/30" };
+                    case "WRONG_CONTENT":
+                      return { text: "Contenido Incorrecto", cls: "bg-orange-500/10 text-orange-400 border-orange-500/30" };
+                    case "TAKEDOWN_REQUEST":
+                      return { text: "Solicitud de Retiro / Takedown", cls: "bg-red-500/20 text-red-300 border-red-500/40" };
+                    case "LOW_QUALITY":
+                      return { text: "Baja Calidad", cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" };
+                    default:
+                      return { text: "Otro Motivo", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30" };
+                  }
+                };
+
+                const badge = getReasonBadge(rep.reason);
+
+                return (
+                  <div
+                    key={rep.id}
+                    className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg backdrop-blur-sm transition hover:border-zinc-700"
+                  >
+                    <div className="space-y-2.5 flex-1 min-w-0">
+                      {/* Cabecera del reporte */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-lg border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
+                          {badge.text}
+                        </span>
+                        <span className="text-xs text-zinc-500 font-mono">
+                          {new Date(rep.createdAt).toLocaleDateString("es-EC", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {rep.reporterEmail && (
+                          <span className="text-xs text-zinc-400">
+                            Por: <span className="text-zinc-200 font-medium">{rep.reporterEmail}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Detalles del documento afectado */}
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 space-y-1.5">
+                        <div className="flex items-center gap-2 text-xs font-medium text-blue-400">
+                          <GraduationCap className="h-3.5 w-3.5" />
+                          <span>{rep.document.subject.name} ({rep.document.subject.code})</span>
+                          <span className="text-zinc-600">•</span>
+                          <span className="text-zinc-400">{rep.document.subcategory} ({rep.document.periodYear}-{rep.document.periodTerm})</span>
+                        </div>
+                        <h4 className="text-sm font-bold text-white truncate" title={rep.document.title}>
+                          {rep.document.title}
+                        </h4>
+                      </div>
+
+                      {/* Mensaje o motivo detallado */}
+                      {rep.details && (
+                        <div className="text-xs text-zinc-300 bg-zinc-950/50 p-2.5 rounded-xl border border-zinc-800/80">
+                          <span className="font-semibold text-zinc-400">Detalles del reporte: </span>
+                          <span className="italic text-zinc-200">&quot;{rep.details}&quot;</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botones de acción para administradores */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
+                      <a
+                        href={rep.document.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 hover:text-white transition"
+                        title="Abrir enlace del documento para verificar error"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        <span>Ver Archivo</span>
+                      </a>
+
+                      <button
+                        onClick={() => handleDismissReport(rep.id)}
+                        disabled={actionLoading === rep.id}
+                        className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 transition"
+                        title="Descartar reporte si el documento no presenta problemas"
+                      >
+                        Descartar
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteReportDoc(rep.id, rep.document.id, rep.document.title)}
+                        disabled={actionLoading === rep.id}
+                        className="flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-rose-600/20 transition active:scale-95"
+                        title="Eliminar documento del repositorio y resolver reporte"
+                      >
+                        {actionLoading === rep.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        <span>Eliminar Doc & Resolver</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}

@@ -10,10 +10,12 @@ import {
   Share2, 
   Paperclip,
   Trash2,
-  Loader2
+  Loader2,
+  Flag
 } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
+import { ReportDocumentModal } from "./ReportDocumentModal";
 
 export interface AttachmentItem {
   name: string;
@@ -64,6 +66,7 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -214,6 +217,14 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
               <Download className="h-4 w-4" />
             </button>
 
+            <button
+              onClick={() => setIsReportOpen(true)}
+              className="flex items-center justify-center rounded-xl border border-zinc-800 bg-zinc-800/60 p-2 text-zinc-400 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition"
+              title="Reportar link caído, 404 o solicitar retiro"
+            >
+              <Flag className="h-4 w-4" />
+            </button>
+
             {isAdmin && (
               <button
                 onClick={handleDeleteDocument}
@@ -234,6 +245,13 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
         onClose={() => setIsViewerOpen(false)}
         document={doc}
         onDownload={() => setDownloads((prev) => prev + 1)}
+      />
+
+      {/* Modal de Reporte / Solicitud de Retiro */}
+      <ReportDocumentModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        document={doc}
       />
     </>
   );
