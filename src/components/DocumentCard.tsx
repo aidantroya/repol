@@ -60,6 +60,8 @@ export interface DocumentItem {
 export function DocumentCard({ doc }: { doc: DocumentItem }) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
+  const isModerator = session?.user?.role === "MODERATOR";
+  const canViewUploader = isAdmin || isModerator;
 
   const [downloads, setDownloads] = useState(doc.downloadCount);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -194,7 +196,9 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
           <div className="flex items-center justify-between text-xs text-zinc-400 mb-3.5">
             <div className="flex items-center gap-1.5 truncate max-w-[180px]">
               <User className="h-3.5 w-3.5 text-zinc-500" />
-              <span className="truncate">{doc.uploadedBy?.name || "Colaborador"}</span>
+              <span className="truncate">
+                {canViewUploader ? (doc.uploadedBy?.name || "Aporte Comunitario") : "Aporte Comunitario"}
+              </span>
             </div>
             <span className="text-[11px] text-zinc-500 font-mono">{formatBytes(doc.fileSize)}</span>
           </div>

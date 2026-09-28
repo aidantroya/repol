@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       // Procesar cada archivo dentro de la carpeta
       const processedItems = await Promise.all(
         folderFiles.map(async (file) => {
-          const { fileHash, fileSize, mimeType } = await computeDriveFileHash(file.id);
+          const { fileHash, fileSize, mimeType } = await computeDriveFileHash(file.id, file.name);
 
           // Verificar si ya existe en la base de datos
           const existingDoc = await prisma.document.findFirst({

@@ -1,17 +1,53 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { computeSemanticContentHash } from "@/lib/content-hash";
 
 export async function POST(req: Request) {
   try {
-    const { fileHash, subjectId, category, subcategory } = await req.json();
+    const contentType = req.headers.get("content-type") || "";
+
+    let fileHash = "";
+    let semanticHash = "";
+    let subjectId = "";
+    let category = "";
+    let subcategory = "";
+
+    if (contentType.includes("multipart/form-data")) {
+      const formData = await req.formData();
+      const file = formData.get("file") as File | null;
+      subjectId = (formData.get("subjectId") as string) || "";
+      category = (formData.get("category") as string) || "";
+      subcategory = (formData.get("subcategory") as string) || "";
+
+      if (!file) {
+        return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 });
+      }
+
+      const arrayBuf = await file.arrayBuffer();
+      const buffer = Buffer.from(arrayBuf);
+      const fp = await computeSemanticContentHash(buffer, file.name, file.type);
+      fileHash = fp.contentHash;
+      semanticHash = fp.contentHash;
+    } else {
+      const body = await req.json();
+      fileHash = body.fileHash;
+      semanticHash = body.semanticHash || body.fileHash;
+      subjectId = body.subjectId;
+      category = body.category;
+      subcategory = body.subcategory;
+    }
 
     if (!fileHash) {
       return NextResponse.json({ error: "El hash SHA-256 es requerido" }, { status: 400 });
     }
 
-    // 1. Verificar si ya existe en documentos publicados
-    const existingDoc = await prisma.document.findUnique({
-      where: { fileHash },
+    const hashesToCheck = Array.from(new Set([fileHash, semanticHash].filter(Boolean)));
+
+    // 1. Verificar si ya existe en documentos publicados (por cualquiera de sus huellas)
+    const existingDoc = await prisma.document.findFirst({
+      where: {
+        OR: hashesToCheck.map((h) => ({ fileHash: h })),
+      },
       include: {
         subject: {
           include: {
@@ -28,6 +64,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         exists: true,
         type: "APPROVED_DOCUMENT",
+        fileHash,
         message: `Este documento ya existe en el repositorio bajo "${existingDoc.subject.name} (${existingDoc.subject.code}) - ${existingDoc.category} (${existingDoc.subcategory})".`,
         document: {
           id: existingDoc.id,
@@ -43,7 +80,7 @@ export async function POST(req: Request) {
     // 2. Verificar si está en la cola de revisión pendiente
     const existingSubmission = await prisma.submission.findFirst({
       where: {
-        fileHash,
+        OR: hashesToCheck.map((h) => ({ fileHash: h })),
         status: "PENDING",
       },
       include: {
@@ -55,6 +92,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         exists: true,
         type: "PENDING_SUBMISSION",
+        fileHash,
         message: `Este documento ya fue enviado por otro estudiante y se encuentra en revisión.`,
       });
     }
@@ -65,7 +103,7 @@ export async function POST(req: Request) {
       similarDoc = await prisma.document.findFirst({
         where: {
           subjectId,
-          category,
+          category: category as "CLASE" | "LECCION" | "TALLER" | "EXAMEN",
           subcategory,
         },
         select: {
@@ -78,6 +116,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       exists: false,
+      fileHash,
       similar: similarDoc
         ? {
             title: similarDoc.title,

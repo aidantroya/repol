@@ -110,6 +110,11 @@ export default function UploadPage() {
   const [isVerifyingSingleDrive, setIsVerifyingSingleDrive] = useState(false);
   const [driveError, setDriveError] = useState("");
 
+  // Input de anexos con Google Drive
+  const [activeDriveAttachmentItemId, setActiveDriveAttachmentItemId] = useState<string | null>(null);
+  const [attDriveUrl, setAttDriveUrl] = useState("");
+  const [attDriveName, setAttDriveName] = useState("");
+
   // Cargar lista de carreras y consolidar materias
   useEffect(() => {
     async function loadCareers() {
@@ -213,32 +218,71 @@ export default function UploadPage() {
 
     setQueue((prev) => [...prev, ...newItems]);
 
-    // Calcular Hash SHA-256 de forma asíncrona para cada archivo agregado
+    // Calcular Hash SHA-256 / Semántico de forma asíncrona para cada archivo agregado
     for (const item of newItems) {
       if (item.file) {
         try {
-          const hash = await calculateSHA256(item.file);
-          const dupRes = await checkDuplicate(hash, item.subjectId, item.category, item.subcategory);
+          const formData = new FormData();
+          formData.append("file", item.file);
+          formData.append("subjectId", item.subjectId);
+          formData.append("category", item.category);
+          formData.append("subcategory", item.subcategory);
 
-          setQueue((prev) =>
-            prev.map((q) =>
-              q.id === item.id
-                ? {
-                    ...q,
-                    fileHash: hash,
-                    isHashing: false,
-                    duplicateCheck: dupRes.exists
-                      ? { exists: true, type: dupRes.type, message: dupRes.message }
-                      : { exists: false },
-                  }
-                : q
-            )
-          );
+          const res = await fetch("/api/documents/check-duplicate", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (res.ok) {
+            const dupRes = await res.json();
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? {
+                      ...q,
+                      fileHash: dupRes.fileHash || q.fileHash,
+                      isHashing: false,
+                      duplicateCheck: dupRes.exists
+                        ? { exists: true, type: dupRes.type, message: dupRes.message }
+                        : { exists: false },
+                    }
+                  : q
+              )
+            );
+          } else {
+            const hash = await calculateSHA256(item.file);
+            const dupRes = await checkDuplicate(hash, item.subjectId, item.category, item.subcategory);
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? {
+                      ...q,
+                      fileHash: hash,
+                      isHashing: false,
+                      duplicateCheck: dupRes.exists
+                        ? { exists: true, type: dupRes.type, message: dupRes.message }
+                        : { exists: false },
+                    }
+                  : q
+              )
+            );
+          }
         } catch (err) {
           console.error("Error al hashear archivo:", err);
-          setQueue((prev) =>
-            prev.map((q) => (q.id === item.id ? { ...q, isHashing: false, errorMessage: "Error calculando hash" } : q))
-          );
+          try {
+            const hash = await calculateSHA256(item.file);
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? { ...q, fileHash: hash, isHashing: false, duplicateCheck: { exists: false } }
+                  : q
+              )
+            );
+          } catch {
+            setQueue((prev) =>
+              prev.map((q) => (q.id === item.id ? { ...q, isHashing: false, errorMessage: "Error calculando hash" } : q))
+            );
+          }
         }
       }
     }
@@ -368,6 +412,33 @@ export default function UploadPage() {
         return { ...item, attachments: [...item.attachments, ...newAttachments] };
       })
     );
+  };
+
+  // Añadir anexo de enlace de Google Drive
+  const handleAddDriveAttachment = (itemId: string) => {
+    if (!attDriveUrl.trim()) return;
+    const cleanUrl = attDriveUrl.trim();
+    const cleanName = attDriveName.trim() || "Material en Google Drive";
+
+    const newAtt: AttachmentUploadItem = {
+      id: `att-drive-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: cleanName,
+      driveUrl: cleanUrl,
+      fileUrl: cleanUrl,
+      fileSize: 0,
+      mimeType: "application/pdf",
+    };
+
+    setQueue((prev) =>
+      prev.map((item) => {
+        if (item.id !== itemId) return item;
+        return { ...item, attachments: [...item.attachments, newAtt] };
+      })
+    );
+
+    setActiveDriveAttachmentItemId(null);
+    setAttDriveUrl("");
+    setAttDriveName("");
   };
 
   // Eliminar un anexo de un ítem
@@ -504,6 +575,13 @@ export default function UploadPage() {
               fileSize: att.file.size,
               mimeType: att.file.type || "application/octet-stream",
               storageKey: attR2.storageKey,
+            });
+          } else if (att.driveUrl || att.fileUrl) {
+            processedAttachments.push({
+              name: att.name || "Archivo en Google Drive",
+              fileUrl: att.driveUrl || att.fileUrl || "",
+              fileSize: att.fileSize || 0,
+              mimeType: att.mimeType || "application/pdf",
             });
           }
         }
@@ -665,21 +743,21 @@ export default function UploadPage() {
           <input
             type="file"
             multiple
-            accept=".pdf,application/pdf"
+            accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
             onChange={(e) => {
               if (e.target.files) handleAddLocalFiles(e.target.files);
             }}
             className="absolute inset-0 cursor-pointer opacity-0"
-            title="Arrastra o selecciona uno o varios PDFs"
+            title="Arrastra o selecciona uno o varios PDFs o archivos Word (.docx)"
           />
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 mb-4">
             <UploadCloud className="h-8 w-8" />
           </div>
           <h4 className="text-base font-semibold text-white mb-1">
-            Arrastra aquí tus archivos PDF o haz clic para explorar
+            Arrastra aquí tus archivos PDF o Word (.docx) o haz clic para explorar
           </h4>
           <p className="text-xs text-zinc-400 max-w-sm">
-            Puedes seleccionar **múltiples archivos a la vez**. Se calculará el hash SHA-256 de cada uno al instante.
+            Puedes seleccionar <strong>múltiples archivos a la vez</strong> (.pdf y .docx). El sistema coteja el contenido semántico e imágenes para evitar duplicados exactos.
           </p>
         </div>
 
@@ -999,21 +1077,82 @@ export default function UploadPage() {
                             <span>Archivos Complementarios / Anexos Opcionales</span>
                           </div>
                           
-                          {/* Botón para adjuntar anexo */}
-                          <label className="cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-xs font-medium border border-zinc-700 transition">
-                            <Plus className="h-3 w-3" />
-                            <span>Adjuntar Archivo Extra</span>
-                            <input
-                              type="file"
-                              multiple
-                              onChange={(e) => handleAddAttachmentToItem(item.id, e.target.files)}
-                              className="hidden"
-                            />
-                          </label>
+                          <div className="flex items-center gap-2">
+                            {/* Botón para adjuntar archivo local */}
+                            <label className="cursor-pointer flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-amber-400 text-xs font-medium border border-zinc-700 transition">
+                              <Plus className="h-3 w-3" />
+                              <span>Archivo Local</span>
+                              <input
+                                type="file"
+                                multiple
+                                onChange={(e) => handleAddAttachmentToItem(item.id, e.target.files)}
+                                className="hidden"
+                              />
+                            </label>
+
+                            {/* Botón para adjuntar enlace de Drive */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveDriveAttachmentItemId(
+                                  activeDriveAttachmentItemId === item.id ? null : item.id
+                                );
+                                setAttDriveUrl("");
+                                setAttDriveName("");
+                              }}
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 text-xs font-medium border border-emerald-500/30 transition"
+                            >
+                              <HardDrive className="h-3 w-3" />
+                              <span>Enlace Drive</span>
+                            </button>
+                          </div>
                         </div>
 
+                        {/* Formulario inline para agregar enlace de Drive como anexo */}
+                        {activeDriveAttachmentItemId === item.id && (
+                          <div className="mb-3 rounded-xl border border-emerald-500/30 bg-zinc-900/90 p-3 animate-in fade-in duration-150">
+                            <div className="text-xs font-semibold text-emerald-400 mb-2 flex items-center gap-1.5">
+                              <HardDrive className="h-3.5 w-3.5" />
+                              <span>Adjuntar enlace de Google Drive</span>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
+                              <input
+                                type="url"
+                                placeholder="https://drive.google.com/..."
+                                value={attDriveUrl}
+                                onChange={(e) => setAttDriveUrl(e.target.value)}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Nombre (ej. Dataset CSV, Rúbrica, Código)"
+                                value={attDriveName}
+                                onChange={(e) => setAttDriveName(e.target.value)}
+                                className="w-full rounded-lg border border-zinc-800 bg-zinc-950 px-2.5 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setActiveDriveAttachmentItemId(null)}
+                                className="px-2.5 py-1 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 transition"
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAddDriveAttachment(item.id)}
+                                disabled={!attDriveUrl.trim()}
+                                className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-xs font-bold text-white transition"
+                              >
+                                Agregar Anexo Drive
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         <p className="text-[11px] text-zinc-500 mb-3">
-                          Útil si este documento requiere un enunciado separado, código de programación (.zip, .py, .cpp), rúbrica o dataset (.csv). El PDF principal seguirá siendo el analizado por el hash y el visor.
+                          Útil si este documento requiere un enunciado separado, código (.zip, .py, .cpp), rúbrica o dataset. Puedes adjuntar archivos locales o enlaces directos de Google Drive.
                         </p>
 
                         {/* Lista de anexos añadidos */}
@@ -1025,14 +1164,20 @@ export default function UploadPage() {
                                 className="flex items-center justify-between gap-2 p-2 rounded-lg bg-zinc-900 border border-zinc-800 text-xs"
                               >
                                 <div className="flex items-center gap-2 truncate">
-                                  <FileCode className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                  {att.driveUrl ? (
+                                    <HardDrive className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                                  ) : (
+                                    <FileCode className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                  )}
                                   <span className="truncate text-zinc-300">{att.name}</span>
-                                  <span className="text-[10px] text-zinc-500">({formatBytes(att.fileSize)})</span>
+                                  <span className="text-[10px] text-zinc-500">
+                                    {att.driveUrl ? "(Drive)" : `(${formatBytes(att.fileSize)})`}
+                                  </span>
                                 </div>
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveAttachment(item.id, att.id)}
-                                  className="text-zinc-500 hover:text-rose-400 p-1"
+                                  className="text-zinc-500 hover:text-rose-400 p-1 transition"
                                   title="Quitar anexo"
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
@@ -1042,7 +1187,7 @@ export default function UploadPage() {
                           </div>
                         ) : (
                           <div className="text-[11px] text-zinc-600 italic">
-                            Sin archivos anexos. (Solo se enviará el PDF principal)
+                            Sin archivos anexos. (Solo se enviará el documento principal)
                           </div>
                         )}
                       </div>

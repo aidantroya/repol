@@ -51,6 +51,9 @@ export async function GET(req: Request) {
       ];
     }
 
+    const session = await getServerSession(authOptions);
+    const isAdminOrMod = session?.user?.role === "ADMIN" || session?.user?.role === "MODERATOR";
+
     const documents = await prisma.document.findMany({
       where,
       include: {
@@ -68,7 +71,21 @@ export async function GET(req: Request) {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ documents });
+    const sanitizedDocs = documents.map((doc) => {
+      if (!isAdminOrMod) {
+        return {
+          ...doc,
+          uploadedBy: {
+            name: "Aporte Comunitario",
+            image: null,
+            approvedContributions: undefined,
+          },
+        };
+      }
+      return doc;
+    });
+
+    return NextResponse.json({ documents: sanitizedDocs });
   } catch (error) {
     console.error("Error fetching documents:", error);
     return NextResponse.json({ error: "Error al buscar documentos" }, { status: 500 });
