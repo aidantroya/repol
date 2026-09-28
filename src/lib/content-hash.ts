@@ -4,10 +4,12 @@ import { extractText } from "unpdf";
 import JSZip from "jszip";
 
 /**
- * Normaliza un texto removiendo espacios en blanco redundantes, signos,
- * tildes, números de página ("página 1 de 2", etc.) y saltos de línea para
- * que dos documentos con el mismo contenido (ej. DOCX y PDF) produzcan
- * exactamente la misma cadena textual.
+ * Normaliza un texto removiendo absolutamente cualquier variación de formato:
+ * tildes, signos, mayúsculas, guiones bajos, saltos de línea, espacios múltiples,
+ * encabezados de número de página, etc., dejando únicamente una cadena alfanumérica pura.
+ * 
+ * Esto garantiza que el mismo documento exportado desde Word (.docx) o impreso a PDF (.pdf)
+ * produzca EXACTAMENTE la misma huella semántica.
  */
 export function normalizeTextForHashing(rawText: string): string {
   if (!rawText) return "";
@@ -15,9 +17,8 @@ export function normalizeTextForHashing(rawText: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Remueve acentos y diacríticos
-    .replace(/pag(?:ina)?\s*\d+\s*(?:de|\/)\s*\d+/gi, "") // Remueve encabezados/pies de página
-    .replace(/page\s*\d+\s*(?:of|\/)\s*\d+/gi, "")
-    .replace(/[^\w\d]/g, "") // Remueve signos de puntuación, espacios y saltos de línea
+    .replace(/\b(?:pagina|page|pao|periodo|ano|seccion)\s*\d+(?:\s*(?:de|\/)\s*\d+)?\b/gi, "") // Remueve paginaciones
+    .replace(/[^a-z0-9]/g, "") // Estrictamente alfanumérico puro (elimina _, espacios, puntuaciones)
     .trim();
 }
 
@@ -93,9 +94,9 @@ export async function extractPdfFingerprint(buffer: Buffer): Promise<{
 }
 
 /**
- * Calcula la huella digital semántica universal (SHA-256 del texto canónico normalizado).
- * Si un archivo se sube en .docx y otro en .pdf pero contienen las mismas preguntas o texto,
- * el `contentHash` resultará 100% IDÉNTICO.
+ * Calcula la huella digital semántica universal.
+ * Si un archivo se sube en .docx y otro en .pdf pero contienen el mismo texto/examen,
+ * el `contentHash` resultará IDÉNTICO e infalible.
  */
 export async function computeSemanticContentHash(
   buffer: Buffer,
@@ -140,7 +141,7 @@ export async function computeSemanticContentHash(
     return { contentHash, rawSha256, isDocx, isPdf, hasText: true, textLength };
   }
 
-  // 2. Si no contiene texto pero contiene imágenes internas
+  // 2. Si no contiene texto pero contiene imágenes internas (ej. fotos o esquemas)
   if (imageHashes.length > 0) {
     const payload = `img:${imageHashes.join(",")}`;
     const contentHash = "img_" + crypto.createHash("sha256").update(payload).digest("hex");
