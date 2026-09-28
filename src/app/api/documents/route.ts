@@ -54,6 +54,24 @@ export async function GET(req: Request) {
     const session = await getServerSession(authOptions);
     const isAdminOrMod = session?.user?.role === "ADMIN" || session?.user?.role === "MODERATOR";
 
+    const sortParam = searchParams.get("sort");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let orderBy: any = [
+      { periodYear: "desc" },
+      { periodTerm: "desc" },
+      { createdAt: "desc" },
+    ];
+
+    if (sortParam === "year_asc") {
+      orderBy = [
+        { periodYear: "asc" },
+        { periodTerm: "asc" },
+        { createdAt: "asc" },
+      ];
+    } else if (sortParam === "recent") {
+      orderBy = { createdAt: "desc" };
+    }
+
     const documents = await prisma.document.findMany({
       where,
       include: {
@@ -68,7 +86,7 @@ export async function GET(req: Request) {
           select: { name: true, image: true, approvedContributions: true },
         },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy,
     });
 
     const sanitizedDocs = documents.map((doc) => {

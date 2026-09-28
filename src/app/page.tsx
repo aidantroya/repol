@@ -43,6 +43,11 @@ export default function HomePage() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [sortBy, setSortBy] = useState<string>("year_desc");
+  const [viewMode, setViewMode] = useState<"folders" | "grid">("folders");
+  const [openSubjects, setOpenSubjects] = useState<Record<string, boolean>>({});
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+
   // Cargar lista completa de carreras
   useEffect(() => {
     async function fetchCareers() {
@@ -102,7 +107,7 @@ export default function HomePage() {
       }));
   }, [activeCareerObj, careers]);
 
-  // Cargar documentos según los filtros activos
+  // Cargar documentos según los filtros activos y ordenamiento
   useEffect(() => {
     async function fetchDocuments() {
       setLoading(true);
@@ -113,6 +118,7 @@ export default function HomePage() {
         if (selectedCategory) params.append("category", selectedCategory);
         if (selectedSubcategory) params.append("subcategory", selectedSubcategory);
         if (searchQuery) params.append("q", searchQuery);
+        if (sortBy) params.append("sort", sortBy);
 
         const res = await fetch(`/api/documents?${params.toString()}`);
         const data = await res.json();
@@ -131,7 +137,7 @@ export default function HomePage() {
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [selectedCareer, selectedSubject, selectedCategory, selectedSubcategory, searchQuery]);
+  }, [selectedCareer, selectedSubject, selectedCategory, selectedSubcategory, searchQuery, sortBy]);
 
   const subcategoryFilters = {
     LECCION: ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"],
@@ -143,6 +149,95 @@ export default function HomePage() {
   const hasActiveFilters = Boolean(
     selectedCareer || selectedSubject || selectedCategory || selectedSubcategory || searchQuery
   );
+
+  // Agrupación jerárquica de documentos por Materia -> Carpetas de Categorías
+  const groupedData = useMemo(() => {
+    const termOrder: Record<string, number> = { "3T": 3, "2T": 2, "1T": 1, "Intensivo": 0 };
+    
+    // Sort comparator
+    const sortDocs = (a: DocumentItem, b: DocumentItem) => {
+      if (sortBy === "year_asc") {
+        if (a.periodYear !== b.periodYear) return a.periodYear - b.periodYear;
+        const termA = termOrder[a.periodTerm] ?? 0;
+        const termB = termOrder[b.periodTerm] ?? 0;
+        return termA - termB;
+      }
+      if (sortBy === "recent") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      // Default: year_desc (más reciente a más antiguo por año de evaluación)
+      if (b.periodYear !== a.periodYear) return b.periodYear - a.periodYear;
+      const termA = termOrder[a.periodTerm] ?? 0;
+      const termB = termOrder[b.periodTerm] ?? 0;
+      return termB - termA;
+    };
+
+    const sortedDocs = [...documents].sort(sortDocs);
+
+    interface FolderGroup {
+      category: "EXAMEN" | "LECCION" | "TALLER" | "CLASE";
+      label: string;
+      iconColor: string;
+      documents: DocumentItem[];
+    }
+
+    interface SubjectGroup {
+      code: string;
+      name: string;
+      slug?: string;
+      totalDocs: number;
+      folders: FolderGroup[];
+    }
+
+    const map = new Map<string, SubjectGroup>();
+
+    for (const doc of sortedDocs) {
+      const sCode = doc.subject.code || "GENERAL";
+      if (!map.has(sCode)) {
+        map.set(sCode, {
+          code: sCode,
+          name: doc.subject.name,
+          slug: doc.subject.name ? doc.subject.name.toLowerCase().replace(/\s+/g, "-") : undefined,
+          totalDocs: 0,
+          folders: [
+            { category: "EXAMEN", label: "Exámenes", iconColor: "text-rose-400", documents: [] },
+            { category: "LECCION", label: "Lecciones", iconColor: "text-amber-400", documents: [] },
+            { category: "TALLER", label: "Talleres y Deberes", iconColor: "text-blue-400", documents: [] },
+            { category: "CLASE", label: "Clases y Apuntes", iconColor: "text-emerald-400", documents: [] },
+          ],
+        });
+      }
+
+      const grp = map.get(sCode)!;
+      grp.totalDocs += 1;
+      const folder = grp.folders.find((f) => f.category === doc.category);
+      if (folder) {
+        folder.documents.push(doc);
+      }
+    }
+
+    // Filtrar carpetas vacías dentro de cada materia
+    const result = Array.from(map.values()).map((s) => ({
+      ...s,
+      folders: s.folders.filter((f) => f.documents.length > 0),
+    }));
+
+    return result;
+  }, [documents, sortBy]);
+
+  const toggleSubject = (code: string) => {
+    setOpenSubjects((prev) => ({
+      ...prev,
+      [code]: prev[code] === undefined ? false : !prev[code],
+    }));
+  };
+
+  const toggleFolder = (key: string) => {
+    setOpenFolders((prev) => ({
+      ...prev,
+      [key]: prev[key] === undefined ? false : !prev[key],
+    }));
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10">
@@ -158,7 +253,7 @@ export default function HomePage() {
           </h1>
           
           <p className="text-sm sm:text-base text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-            Centraliza lecciones, talleres, clases y exámenes organizados por mallas y códigos oficiales. Si una materia es compartida entre varias carreras, encontrarás su material unificado en un solo lugar.
+            Centraliza lecciones, talleres, clases y exámenes organizados por mallas y materias oficiales de la ESPOL. Explora los archivos por carpetas organizadas y ordenados por año de evaluación.
           </p>
 
           {/* Buscador Global Rápido */}
@@ -316,7 +411,7 @@ export default function HomePage() {
               <div>
                 <h3 className="text-sm font-bold text-white">¿Deseas descargar todo el material de esta materia?</h3>
                 <p className="text-xs text-zinc-400 mt-0.5">
-                  Descarga un archivo ZIP organizado por carpetas con todos los exámenes, lecciones, talleres y clases.
+                  Descarga un archivo ZIP organizado por carpetas con todos los exámenes, lecciones, talleres y clases ordenados por año.
                 </p>
               </div>
             </div>
@@ -334,7 +429,8 @@ export default function HomePage() {
           </div>
         )}
 
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
+        {/* Barra superior de resultados con Selector de Vista y Ordenamiento */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-white">Documentos Disponibles</h2>
             <span className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-xs font-semibold text-zinc-300 border border-zinc-700">
@@ -342,13 +438,58 @@ export default function HomePage() {
             </span>
           </div>
 
-          <Link
-            href="/upload"
-            className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition"
-          >
-            <span>Subir aporte</span>
-            <ChevronRight className="h-4 w-4" />
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Control de Ordenamiento */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-400 font-medium hidden sm:inline">Ordenar por:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label="Criterio de ordenamiento de documentos"
+                className="rounded-xl border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-semibold text-zinc-200 focus:border-blue-500 focus:outline-none"
+              >
+                <option value="year_desc">📅 Año evaluado: Más reciente a más antiguo</option>
+                <option value="year_asc">📅 Año evaluado: Más antiguo a más reciente</option>
+                <option value="recent">⚡ Fecha de subida: Más reciente</option>
+              </select>
+            </div>
+
+            {/* Alternador de Modo de Vista */}
+            <div className="flex items-center rounded-xl bg-zinc-900 p-1 border border-zinc-800">
+              <button
+                onClick={() => setViewMode("folders")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  viewMode === "folders"
+                    ? "bg-blue-600 text-white shadow"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+                title="Vista jerárquica por Materias y Carpetas"
+              >
+                <FolderArchive className="h-3.5 w-3.5" />
+                <span>Por Carpetas</span>
+              </button>
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                  viewMode === "grid"
+                    ? "bg-blue-600 text-white shadow"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+                title="Vista de cuadrícula directa"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Cuadrícula</span>
+              </button>
+            </div>
+
+            <Link
+              href="/upload"
+              className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition pl-1"
+            >
+              <span>Subir aporte</span>
+              <ChevronRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
 
         {loading ? (
@@ -377,7 +518,112 @@ export default function HomePage() {
               <span>Contribuir Material</span>
             </Link>
           </div>
+        ) : viewMode === "folders" ? (
+          /* =================== VISTA POR MATERIAS Y CARPETAS =================== */
+          <div className="space-y-8">
+            {groupedData.map((subj) => {
+              const isSubjOpen = openSubjects[subj.code] !== false; // Abierto por defecto
+              return (
+                <div
+                  key={subj.code}
+                  className="rounded-3xl border border-zinc-800 bg-zinc-900/40 overflow-hidden backdrop-blur-sm transition shadow-lg"
+                >
+                  {/* Encabezado de Materia */}
+                  <div
+                    onClick={() => toggleSubject(subj.code)}
+                    className="flex items-center justify-between p-5 bg-zinc-900/80 hover:bg-zinc-800/60 cursor-pointer border-b border-zinc-800/80 transition"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                        <BookOpen className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-white">{subj.name}</h3>
+                          <span className="rounded bg-blue-500/10 px-2 py-0.5 text-xs font-mono text-blue-400 border border-blue-500/20 font-semibold">
+                            {subj.code}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {subj.totalDocs} documento(s) disponible(s) ordenados por año de evaluación
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
+                        {isSubjOpen ? "Contraer materia" : "Expandir materia"}
+                      </span>
+                      <div className="h-8 w-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300">
+                        <ChevronRight
+                          className={`h-4 w-4 transition-transform duration-200 ${
+                            isSubjOpen ? "rotate-90" : ""
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contenido de la Materia: Carpetas de Categorías */}
+                  {isSubjOpen && (
+                    <div className="p-5 sm:p-6 space-y-6 animate-in fade-in duration-200">
+                      {subj.folders.map((folder) => {
+                        const folderKey = `${subj.code}-${folder.category}`;
+                        const isFolderOpen = openFolders[folderKey] !== false; // Abierto por defecto
+
+                        return (
+                          <div
+                            key={folder.category}
+                            className="rounded-2xl border border-zinc-800/80 bg-zinc-950/60 overflow-hidden"
+                          >
+                            {/* Barra de la Carpeta */}
+                            <div
+                              onClick={() => toggleFolder(folderKey)}
+                              className="flex items-center justify-between px-4 py-3 bg-zinc-900/60 hover:bg-zinc-800/40 cursor-pointer border-b border-zinc-800/60 transition"
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <FolderArchive className={`h-4 w-4 ${folder.iconColor}`} />
+                                <span className="text-sm font-bold text-zinc-200">
+                                  Carpeta: {folder.label}
+                                </span>
+                                <span className="rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-semibold text-zinc-300 border border-zinc-700">
+                                  {folder.documents.length}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                                <span className="hidden sm:inline">
+                                  {folder.documents[0]?.periodYear
+                                    ? `Más reciente: ${folder.documents[0].periodYear} - ${folder.documents[0].periodTerm}`
+                                    : ""}
+                                </span>
+                                <ChevronRight
+                                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                                    isFolderOpen ? "rotate-90" : ""
+                                  }`}
+                                />
+                              </div>
+                            </div>
+
+                            {/* Grilla de Documentos dentro de la Carpeta */}
+                            {isFolderOpen && (
+                              <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-150">
+                                {folder.documents.map((doc) => (
+                                  <DocumentCard key={doc.id} doc={doc} />
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* =================== VISTA DE CUADRÍCULA ESTÁNDAR =================== */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {documents.map((doc) => (
               <DocumentCard key={doc.id} doc={doc} />
@@ -389,3 +635,4 @@ export default function HomePage() {
     </div>
   );
 }
+
