@@ -49,6 +49,20 @@ enum ReportStatus {
   DISMISSED
 }
 
+enum FeedbackType {
+  BUG
+  IMPROVEMENT_SUGGESTION
+  SUBJECT_REQUEST
+  OTHER
+}
+
+enum FeedbackStatus {
+  PENDING
+  REVIEWED
+  RESOLVED
+  DISMISSED
+}
+
 model User {
   id                    String                   @id @default(cuid())
   name                  String?
@@ -67,6 +81,7 @@ model User {
   reviewedSubmissions   Submission[]             @relation("ReviewedSubmissions")
   promotionRequests     AdminPromotionRequest[]
   reports               DocumentReport[]
+  feedbacks             SiteFeedback[]
 }
 
 model Account {
@@ -248,6 +263,26 @@ model DocumentReport {
   updatedAt     DateTime      @updatedAt
 
   @@index([documentId])
+  @@index([status])
+}
+
+model SiteFeedback {
+  id          String         @id @default(cuid())
+  type        FeedbackType
+  title       String
+  description String         @db.Text
+  email       String?
+  
+  userId      String?
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  status      FeedbackStatus @default(PENDING)
+  adminNotes  String?        @db.Text
+  
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([type])
   @@index([status])
 }
 

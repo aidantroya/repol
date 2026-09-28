@@ -15,9 +15,30 @@ import {
   Paperclip,
   Flag,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Bug,
+  Lightbulb,
+  BookPlus,
+  MessageSquare
 } from "lucide-react";
 import { getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+
+interface FeedbackItem {
+  id: string;
+  type: "BUG" | "IMPROVEMENT_SUGGESTION" | "SUBJECT_REQUEST" | "OTHER";
+  title: string;
+  description: string;
+  email?: string | null;
+  status: "PENDING" | "REVIEWED" | "RESOLVED" | "DISMISSED";
+  adminNotes?: string | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    name?: string | null;
+    email: string;
+    role: string;
+  } | null;
+}
 
 const REJECTION_PRESETS = [
   {
@@ -141,10 +162,11 @@ export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports" | "feedback">("submissions");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [promotions, setPromotions] = useState<PromotionRequest[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -166,19 +188,22 @@ export default function AdminDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [subRes, promRes, repRes] = await Promise.all([
+      const [subRes, promRes, repRes, feedRes] = await Promise.all([
         fetch("/api/admin/submissions?status=PENDING"),
         fetch("/api/admin/promotions"),
         fetch("/api/reports?status=PENDING"),
+        fetch("/api/feedback?status=PENDING"),
       ]);
 
       const subData = await subRes.json();
       const promData = await promRes.json();
       const repData = await repRes.json();
+      const feedData = await feedRes.json();
 
       if (subData.submissions) setSubmissions(subData.submissions);
       if (promData.requests) setPromotions(promData.requests);
       if (repData.reports) setReports(repData.reports);
+      if (feedData.feedbacks) setFeedbacks(feedData.feedbacks);
     } catch (e) {
       console.error("Error al cargar datos de admin:", e);
     } finally {
@@ -191,6 +216,24 @@ export default function AdminDashboardPage() {
       loadData();
     }
   }, [isAdmin]);
+
+  const handleFeedbackStatus = async (feedbackId: string, newStatus: "RESOLVED" | "DISMISSED") => {
+    setActionLoading(feedbackId);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ feedbackId, status: newStatus }),
+      });
+      if (res.ok) {
+        setFeedbacks((prev) => prev.filter((f) => f.id !== feedbackId));
+      }
+    } catch (e) {
+      console.error("Error al actualizar feedback:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
 
   const handleDeleteReportDoc = async (reportId: string, docId: string, docTitle: string) => {
     if (!window.confirm(`¿Confirmas la eliminación definitiva de "${docTitle}" y resolución del reporte?`)) {
@@ -373,6 +416,21 @@ export default function AdminDashboardPage() {
             <span>Reportes</span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reports.length > 0 ? "bg-rose-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
               {reports.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("feedback")}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+              activeTab === "feedback"
+                ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
+                : "text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Bug className="h-3.5 w-3.5" />
+            <span>Bugs & Sugerencias</span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${feedbacks.length > 0 ? "bg-indigo-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
+              {feedbacks.length}
             </span>
           </button>
         </div>
@@ -681,6 +739,108 @@ export default function AdminDashboardPage() {
                           <Trash2 className="h-3.5 w-3.5" />
                         )}
                         <span>Eliminar Doc & Resolver</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pestaña 4: Bugs, Sugerencias de Mejora y Solicitudes de Materias */}
+      {activeTab === "feedback" && (
+        <div>
+          {feedbacks.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-400 mb-4">
+                <Check className="h-7 w-7 text-emerald-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">¡No hay sugerencias ni bugs pendientes!</h3>
+              <p className="text-sm text-zinc-400 mt-1">
+                La comunidad universitaria no ha registrado nuevos reportes técnicos o propuestas sin atender.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {feedbacks.map((item) => {
+                const getTypeBadge = (type: string) => {
+                  switch (type) {
+                    case "BUG":
+                      return { text: "Bug / Error", cls: "bg-rose-500/10 text-rose-400 border-rose-500/30", icon: Bug };
+                    case "IMPROVEMENT_SUGGESTION":
+                      return { text: "Sugerencia de Mejora", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30", icon: Lightbulb };
+                    case "SUBJECT_REQUEST":
+                      return { text: "Materia Faltante", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30", icon: BookPlus };
+                    default:
+                      return { text: "Otro Comentario", cls: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30", icon: MessageSquare };
+                  }
+                };
+
+                const badge = getTypeBadge(item.type);
+                const BadgeIcon = badge.icon;
+
+                return (
+                  <div
+                    key={item.id}
+                    className="flex flex-col lg:flex-row lg:items-start justify-between gap-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg backdrop-blur-sm transition hover:border-zinc-700"
+                  >
+                    <div className="space-y-3 flex-1 min-w-0">
+                      {/* Tipo y fecha */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
+                          <BadgeIcon className="h-3.5 w-3.5" />
+                          <span>{badge.text}</span>
+                        </span>
+                        <span className="text-xs text-zinc-500 font-mono">
+                          {new Date(item.createdAt).toLocaleDateString("es-EC", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {(item.user || item.email) && (
+                          <span className="text-xs text-zinc-400">
+                            Por: <span className="text-zinc-200 font-medium">{item.user?.name || item.user?.email || item.email}</span>
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Título */}
+                      <h3 className="text-base font-bold text-white">
+                        {item.title}
+                      </h3>
+
+                      {/* Descripción */}
+                      <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs sm:text-sm text-zinc-300 leading-relaxed whitespace-pre-line">
+                        {item.description}
+                      </div>
+                    </div>
+
+                    {/* Botones de acción */}
+                    <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
+                      <button
+                        onClick={() => handleFeedbackStatus(item.id, "DISMISSED")}
+                        disabled={actionLoading === item.id}
+                        className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3.5 py-2 text-xs font-semibold text-zinc-300 transition"
+                      >
+                        Descartar
+                      </button>
+
+                      <button
+                        onClick={() => handleFeedbackStatus(item.id, "RESOLVED")}
+                        disabled={actionLoading === item.id}
+                        className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition active:scale-95"
+                      >
+                        {actionLoading === item.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                        <span>Marcar Resuelto</span>
                       </button>
                     </div>
                   </div>

@@ -25,6 +25,10 @@ export default function RootLayout({
               <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
                 <p>© {new Date().getFullYear()} RePol - Repositorio Académico</p>
                 <span className="hidden sm:inline text-zinc-700">•</span>
+                <a href="/feedback" className="text-zinc-400 hover:text-blue-400 underline-offset-4 hover:underline transition">
+                  Reportar Bug o Sugerencia
+                </a>
+                <span className="hidden sm:inline text-zinc-700">•</span>
                 <a href="/informacion-adicional" className="text-zinc-400 hover:text-blue-400 underline-offset-4 hover:underline transition">
                   Información adicional
                 </a>
