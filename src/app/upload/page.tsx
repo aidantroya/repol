@@ -1007,6 +1007,21 @@ export default function UploadPage() {
                     </div>
                   </div>
 
+                  {/* Alerta explícita de Documento Duplicado */}
+                  {item.duplicateCheck?.exists && (
+                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 animate-in fade-in duration-150">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-rose-200">
+                          Este documento ya existe en la plataforma RePol
+                        </div>
+                        <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                          {item.duplicateCheck.message || "El contenido de este archivo coincide exactamente con un documento ya existente en el repositorio o en moderación."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Mensaje de error individual si ocurrió */}
                   {item.errorMessage && (
                     <div className="mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 text-xs text-rose-300">

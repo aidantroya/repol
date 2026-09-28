@@ -168,7 +168,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { id, title, description, customDescription, category, subcategory, periodYear, periodTerm, subjectId } = body;
+    const { id, title, description, customDescription, category, subcategory, periodYear, periodTerm, subjectId, fileUrl, attachments } = body;
 
     if (!id) {
       return NextResponse.json({ error: "ID del documento requerido" }, { status: 400 });
@@ -184,6 +184,8 @@ export async function PUT(req: Request) {
     if (periodYear !== undefined) updateData.periodYear = parseInt(String(periodYear), 10);
     if (periodTerm !== undefined) updateData.periodTerm = String(periodTerm).trim();
     if (subjectId !== undefined) updateData.subjectId = String(subjectId).trim();
+    if (fileUrl !== undefined) updateData.fileUrl = String(fileUrl).trim();
+    if (attachments !== undefined) updateData.attachments = attachments;
 
     const updatedDocument = await prisma.document.update({
       where: { id },
