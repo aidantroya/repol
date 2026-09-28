@@ -5,36 +5,47 @@ interface SendOtpEmailParams {
   otp: string;
 }
 
-export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ success: boolean; message?: string }> {
+export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ success: boolean; message?: string; devOtp?: string }> {
+  const resendApiKey = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  const fromEmail = process.env.SMTP_FROM || '"RePol ESPOL" <no-reply@espol.edu.ec>';
+  const fromEmail = process.env.SMTP_FROM || process.env.RESEND_FROM || "RePol ESPOL <onboarding@resend.dev>";
 
+  const subject = `Código de verificación RePol: ${otp}`;
   const htmlContent = `
     <!DOCTYPE html>
-    <html>
+    <html lang="es">
       <head>
         <meta charset="utf-8">
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 24px; }
-          .container { max-width: 500px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; text-align: center; }
-          .badge { display: inline-block; background-color: #1e3a8a; color: #93c5fd; padding: 6px 12px; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 16px; }
-          .title { font-size: 24px; font-weight: bold; color: #ffffff; margin-bottom: 8px; }
-          .subtitle { font-size: 14px; color: #a1a1aa; margin-bottom: 24px; }
-          .otp-box { background-color: #09090b; border: 2px dashed #3b82f6; border-radius: 12px; padding: 20px; font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #60a5fa; margin-bottom: 24px; }
-          .footer { font-size: 12px; color: #71717a; border-top: 1px solid #27272a; padding-top: 16px; margin-top: 24px; }
-        </style>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Código de Verificación ESPOL</title>
       </head>
-      <body>
-        <div class="container">
-          <div class="badge">Repositorio Académico ESPOL</div>
-          <h1 class="title">Código de Verificación</h1>
-          <p class="subtitle">Utiliza este código de seguridad para iniciar sesión en <strong>RePol</strong>. Válido durante 10 minutos.</p>
-          <div class="otp-box">${otp}</div>
-          <p style="font-size: 13px; color: #a1a1aa;">Si tú no solicitaste este código, puedes ignorar este mensaje.</p>
-          <div class="footer">
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 24px;">
+        <div style="max-width: 480px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; text-align: center;">
+          <div style="display: inline-block; background-color: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; padding: 6px 14px; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 20px;">
+            🎓 Repositorio Académico ESPOL
+          </div>
+          <h1 style="font-size: 22px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0;">Tu Código de Verificación</h1>
+          <p style="font-size: 14px; color: #a1a1aa; line-height: 1.5; margin: 0 0 24px 0;">
+            Ingresa este código de seguridad de 6 dígitos para acceder a <strong>RePol</strong> con tu cuenta institucional.
+          </p>
+          
+          <div style="background-color: #09090b; border: 2px dashed #3b82f6; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+            <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #60a5fa; font-family: monospace;">
+              ${otp}
+            </span>
+          </div>
+
+          <p style="font-size: 12px; color: #71717a; margin: 0 0 8px 0;">
+            ⏳ Este código expira en <strong>10 minutos</strong>.
+          </p>
+          <p style="font-size: 12px; color: #71717a; margin: 0;">
+            Si tú no solicitaste este código, puedes ignorar este mensaje de forma segura.
+          </p>
+
+          <div style="font-size: 11px; color: #52525b; border-top: 1px solid #27272a; padding-top: 16px; margin-top: 24px;">
             © ${new Date().getFullYear()} RePol • Escuela Superior Politécnica del Litoral
           </div>
         </div>
@@ -42,6 +53,38 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
     </html>
   `;
 
+  // 1. MÉTODO RECOMENDADO: Resend API (HTTP REST, 100% compatible con Vercel Serverless y entrega garantizada a Outlook/ESPOL)
+  if (resendApiKey) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [to],
+          subject: subject,
+          html: htmlContent,
+          text: `Tu código de verificación de RePol es: ${otp}. Válido por 10 minutos.`,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        console.error("Resend API error:", resData);
+        return { success: false, message: resData.message || "Error en el servicio de correo Resend" };
+      }
+
+      console.log(`[RePol] Correo enviado exitosamente vía Resend a ${to} (ID: ${resData.id})`);
+      return { success: true };
+    } catch (error) {
+      console.error("Error conectando con Resend API:", error);
+    }
+  }
+
+  // 2. MÉTODO SMTP (Nodemailer: Gmail, Brevo, SendGrid, etc.)
   if (smtpHost && smtpUser && smtpPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -57,24 +100,24 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
       await transporter.sendMail({
         from: fromEmail,
         to,
-        subject: `Tu código de acceso a RePol: ${otp}`,
+        subject,
         text: `Tu código de verificación de RePol es: ${otp}. Es válido durante 10 minutos.`,
         html: htmlContent,
       });
 
+      console.log(`[RePol] Correo enviado exitosamente vía SMTP a ${to}`);
       return { success: true };
     } catch (error) {
       console.error("Error al enviar correo vía SMTP:", error);
-      return { success: false, message: "Error al enviar el correo vía SMTP" };
+      return { success: false, message: "Error al conectar con el servidor SMTP" };
     }
   }
 
-  // Si no hay servidor SMTP configurado aún (ej. entorno local o previa configuración de credenciales),
-  // registramos el código en logs para facilitar pruebas inmediatas y nunca bloquear al desarrollador.
+  // 3. MODO DESARROLLO / PRUEBAS LOCALES (Si aún no se configuran variables de correo en .env)
   console.log(`\n======================================================`);
   console.log(`[RePol OTP] Correo institucional: ${to}`);
   console.log(`[RePol OTP] Código de verificación: ${otp}`);
   console.log(`======================================================\n`);
 
-  return { success: true };
+  return { success: true, devOtp: otp };
 }

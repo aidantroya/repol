@@ -25,6 +25,7 @@ export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [devOtpCode, setDevOtpCode] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
 
   // Contador para reenvío de código
@@ -69,6 +70,11 @@ export default function SignInPage() {
       }
 
       setSuccessMessage(data.message || "Código enviado a tu correo institucional.");
+      if (data.devCode) {
+        setDevOtpCode(data.devCode);
+      } else {
+        setDevOtpCode(null);
+      }
       setStep("OTP");
       setCountdown(30); // 30 segundos de espera para reenvío
     } catch (err: unknown) {
@@ -248,6 +254,18 @@ export default function SignInPage() {
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 pl-10 pr-4 py-3 text-center text-lg font-mono font-bold tracking-widest text-white placeholder-zinc-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 transition"
                 />
               </div>
+
+              {devOtpCode && (
+                <div className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200">
+                  <p className="font-semibold text-amber-300 mb-1">🔑 Código de prueba generado:</p>
+                  <p className="text-white font-mono text-base font-bold tracking-widest bg-zinc-950/80 px-2 py-1 rounded inline-block">
+                    {devOtpCode}
+                  </p>
+                  <p className="mt-1.5 text-[11px] text-amber-400/80 leading-relaxed">
+                    Nota: Para enviar correos reales al buzón de Outlook ESPOL (@espol.edu.ec), añade la clave gratuita <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-200">RESEND_API_KEY</code> o credenciales SMTP en Vercel.
+                  </p>
+                </div>
+              )}
 
               <div className="mt-3 flex items-center justify-between text-xs text-zinc-400">
                 <span>¿No te llegó el código?</span>

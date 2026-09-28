@@ -56,6 +56,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: `Hemos enviado un código de verificación a ${normalizedEmail}.`,
+      devCode: sendResult.devOtp,
     });
   } catch (error) {
     console.error("Error al procesar solicitud de OTP:", error);
