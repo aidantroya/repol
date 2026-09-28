@@ -8,6 +8,10 @@ function sanitizeFilename(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").trim();
 }
 
+function sanitizeFolderName(name: string): string {
+  return name.replace(/[/\\?%*:|"<>]/g, "-").trim();
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -35,6 +39,7 @@ export async function GET(req: Request) {
         documents: {
           orderBy: [
             { category: "asc" },
+            { subcategory: "asc" },
             { periodYear: "desc" },
             { periodTerm: "asc" },
           ],
@@ -58,22 +63,25 @@ export async function GET(req: Request) {
 
     const zip = new JSZip();
 
-    // Carpetas organizadas dentro del archivo comprimido
+    // Carpetas principales organizadas dentro del archivo ZIP
     const categoryFolders: Record<string, string> = {
-      EXAMEN: "1. Exámenes",
-      LECCION: "2. Lecciones",
-      TALLER: "3. Talleres y Deberes",
-      CLASE: "4. Clases y Apuntes",
+      EXAMEN: "Exámenes",
+      LECCION: "Lecciones",
+      TALLER: "Talleres y Deberes",
+      CLASE: "Clases y Apuntes",
     };
 
     let filesAddedCount = 0;
 
-    // Procesar y descargar cada documento para incluirlo en el ZIP
+    // Procesar y descargar cada documento para clasificarlo en su subcarpeta correspondiente
     await Promise.all(
       subject.documents.map(async (doc, idx) => {
-        const folderName = categoryFolders[doc.category] || "5. Otros";
-        const folder = zip.folder(folderName);
-        if (!folder) return;
+        const mainCategory = categoryFolders[doc.category] || "Otros";
+        const subcategoryFolder = sanitizeFolderName(doc.subcategory || "General");
+        
+        // Estructura: Exámenes/Parcial, Lecciones/Lección 1, Talleres/Taller 2, etc.
+        const targetFolder = zip.folder(`${mainCategory}/${subcategoryFolder}`);
+        if (!targetFolder) return;
 
         let fileBuffer: Buffer | null = null;
 
@@ -99,20 +107,19 @@ export async function GET(req: Request) {
         }
 
         if (fileBuffer) {
-          const cleanSub = sanitizeFilename(doc.subcategory || "Doc");
           const cleanTitle = sanitizeFilename(doc.title);
           const ext = doc.mimeType.includes("pdf") ? ".pdf" : "";
-          const fileName = `${doc.periodYear}_${doc.periodTerm}_${cleanSub}_${cleanTitle}${ext.length > 0 ? ext : ""}`;
+          const fileName = `${doc.periodYear}_${doc.periodTerm}_${cleanTitle}${ext.length > 0 ? ext : ""}`;
 
-          folder.file(fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`, fileBuffer);
+          targetFolder.file(fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`, fileBuffer);
           filesAddedCount++;
         }
 
-        // 2. Procesar anexos complementarios si existen
+        // 2. Procesar anexos complementarios dentro de su subcarpeta correspondiente
         if (doc.attachments && Array.isArray(doc.attachments) && doc.attachments.length > 0) {
           const attachmentsList = doc.attachments as Array<{ name: string; fileUrl: string; storageKey?: string }>;
           const cleanDocTitle = sanitizeFilename(doc.title).substring(0, 30);
-          const attFolder = folder.folder(`Anexos_${doc.periodYear}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
+          const attFolder = targetFolder.folder(`Anexos_${doc.periodYear}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
 
           if (attFolder) {
             for (const att of attachmentsList) {
@@ -134,7 +141,7 @@ export async function GET(req: Request) {
                     attBuffer = Buffer.from(arrayBuf);
                   }
                 } catch {
-                  // Ignore attachment download failure
+                  // Ignore attachment failure
                 }
               }
 
@@ -149,7 +156,7 @@ export async function GET(req: Request) {
 
     if (filesAddedCount === 0) {
       return NextResponse.json(
-        { error: "No se pudieron obtener los archivos del almacenamiento." },
+        { error: "No se pudieron obtener los archivos del almacenamiento para el ZIP." },
         { status: 500 }
       );
     }

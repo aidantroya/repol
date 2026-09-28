@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft } from "lucide-react";
+import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 
 export interface AttachmentItem {
@@ -156,16 +156,6 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
           >
             <ExternalLink className="h-4 w-4" />
           </a>
-
-          {/* Cerrar visor (Esc) */}
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-rose-500/20 hover:border-rose-500/40 hover:text-rose-300 px-3 py-1.5 text-xs font-semibold text-zinc-300 transition"
-            title="Cerrar visor de documento (Esc)"
-          >
-            <X className="h-4 w-4" />
-            <span className="hidden sm:inline">Cerrar</span>
-          </button>
         </div>
       </div>
 
