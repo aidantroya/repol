@@ -58,6 +58,35 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
   // 1. MÉTODO BREVO (Sendinblue) API - Rápido, 300 correos diarios gratis y entrega directa garantizada a Outlook ESPOL
   if (brevoApiKey) {
     try {
+      let finalSenderEmail = process.env.BREVO_FROM || process.env.SMTP_FROM || "";
+
+      // Si no se configuró BREVO_FROM, consultar el remitente verificado por defecto en la cuenta de Brevo
+      if (!finalSenderEmail || !finalSenderEmail.includes("@") || finalSenderEmail.includes("espol.edu.ec")) {
+        try {
+          const sendersRes = await fetch("https://api.brevo.com/v3/senders", {
+            headers: {
+              "api-key": brevoApiKey,
+              "Accept": "application/json",
+            },
+          });
+          if (sendersRes.ok) {
+            const sendersData = await sendersRes.json();
+            if (sendersData.senders && sendersData.senders.length > 0) {
+              const activeSender = sendersData.senders.find((s: { active?: boolean; email?: string }) => s.active) || sendersData.senders[0];
+              if (activeSender?.email) {
+                finalSenderEmail = activeSender.email;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn("No se pudo consultar lista de remitentes en Brevo:", e);
+        }
+      }
+
+      if (!finalSenderEmail) {
+        finalSenderEmail = "no-reply@brevo.com";
+      }
+
       const res = await fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: {
@@ -66,7 +95,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
           "Accept": "application/json",
         },
         body: JSON.stringify({
-          sender: { name: senderName, email: fromEmail.includes("@") ? fromEmail : "no-reply@repol.espol.edu.ec" },
+          sender: { name: senderName, email: finalSenderEmail },
           to: [{ email: to }],
           subject: subject,
           htmlContent: htmlContent,
