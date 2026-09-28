@@ -145,7 +145,8 @@ function isDriveFolder(entryName: string, entryContent: string): boolean {
     lowerContent.includes("icon-doc") ||
     lowerContent.includes("icon-presentation") ||
     lowerContent.includes("icon-spreadsheet") ||
-    lowerContent.includes("open?id=")
+    lowerContent.includes("open?id=") ||
+    lowerContent.includes("data-target=\"file\"")
   ) {
     return false;
   }
@@ -164,14 +165,20 @@ function isDriveFolder(entryName: string, entryContent: string): boolean {
     return true;
   }
 
-  // 4. Si el nombre sugiere una carpeta contenedora
-  const folderKeywords = ["clases", "clase", "examenes", "examen", "lecciones", "leccion", "talleres", "taller", "deberes", "unidad", "capitulo", "parcial", "final", "apuntes"];
-  if (folderKeywords.some((kw) => lowerName === kw || lowerName.startsWith(kw + " "))) {
-    return true;
-  }
-
   // Por defecto, tratar como archivo
   return false;
+}
+
+export interface CrawlResult {
+  items: DriveItem[];
+  debug: {
+    folderId: string;
+    totalFound: number;
+    subFoldersFound: number;
+    htmlLength?: number;
+    status?: number;
+    logs: string[];
+  };
 }
 
 /**
@@ -182,9 +189,11 @@ export async function fetchGoogleDriveFolderFiles(
   currentPath = "",
   currentDepth = 0,
   maxDepth = 4,
-  visitedFolders = new Set<string>()
+  visitedFolders = new Set<string>(),
+  debugLogs: string[] = []
 ): Promise<DriveItem[]> {
   if (currentDepth > maxDepth || visitedFolders.has(folderId)) {
+    debugLogs.push(`[Skip] Depth ${currentDepth} > ${maxDepth} or already visited ${folderId}`);
     return [];
   }
   visitedFolders.add(folderId);
@@ -200,6 +209,7 @@ export async function fetchGoogleDriveFolderFiles(
       if (res.ok) {
         const data = await res.json();
         if (data.files && Array.isArray(data.files)) {
+          debugLogs.push(`[API v3] Folder ${folderId} returned ${data.files.length} items`);
           for (const f of data.files) {
             const isFolder = f.mimeType === "application/vnd.google-apps.folder";
             if (isFolder) {
@@ -209,7 +219,8 @@ export async function fetchGoogleDriveFolderFiles(
                 subPath,
                 currentDepth + 1,
                 maxDepth,
-                visitedFolders
+                visitedFolders,
+                debugLogs
               );
               allItems.push(...subFiles);
             } else {
@@ -226,7 +237,7 @@ export async function fetchGoogleDriveFolderFiles(
         }
       }
     } catch (err) {
-      console.warn("Error en API de Drive v3, continuando con extractor embebido recursivo:", err);
+      debugLogs.push(`[API v3 Error] ${String(err)}`);
     }
   }
 
@@ -240,15 +251,19 @@ export async function fetchGoogleDriveFolderFiles(
       },
     });
 
+    debugLogs.push(`[Scraper] Folder ${folderId} -> HTTP Status: ${res.status}`);
+
     if (!res.ok) {
-      throw new Error(`No se pudo acceder a la carpeta pública de Google Drive (Status ${res.status}).`);
+      throw new Error(`Google Drive respondió con HTTP ${res.status} al consultar la carpeta ${folderId}.`);
     }
 
     const html = await res.text();
+    debugLogs.push(`[Scraper] Folder ${folderId} -> HTML Length: ${html.length}`);
+
     const seenIds = new Set<string>();
     const subFoldersToCrawl: Array<{ id: string; name: string }> = [];
 
-    // Parsear cada fila <tr id="entry-XXXX"> de la vista de Google Drive
+    // Parsear cada entrada de tabla o contenedor de la vista
     const trRegex = /<tr[^>]*id="entry-([a-zA-Z0-9_-]+)"([\s\S]*?)<\/tr>/gi;
     let trMatch: RegExpExecArray | null;
 
@@ -271,9 +286,10 @@ export async function fetchGoogleDriveFolderFiles(
       const isFolder = isDriveFolder(entryName, entryContent);
 
       if (isFolder) {
+        debugLogs.push(`[Subfolder detected] ${entryName} (${entryId})`);
         subFoldersToCrawl.push({ id: entryId, name: entryName });
       } else {
-        // Es un archivo real (.pdf, .docx, diapositivas, hojas, etc.)
+        debugLogs.push(`[File detected] ${entryName} (${entryId})`);
         allItems.push({
           id: entryId,
           name: entryName,
@@ -287,35 +303,21 @@ export async function fetchGoogleDriveFolderFiles(
       }
     }
 
-    // Fallback: Detectar carpetas explícitas por enlace si no hubo filas de tabla
+    // Fallback genérico por id="entry-XXXX" si trRegex no coincidió
     if (subFoldersToCrawl.length === 0 && allItems.length === 0) {
-      const folderLinkRegex =
-        /href="(?:\/drive\/folders\/|https:\/\/drive\.google\.com\/drive\/folders\/|embeddedfolderview\?id=)([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/gi;
-      let fMatch: RegExpExecArray | null;
-      while ((fMatch = folderLinkRegex.exec(html)) !== null) {
-        const fId = fMatch[1];
-        const fName = fMatch[2].trim();
-        if (fId !== folderId && !visitedFolders.has(fId) && !seenIds.has(fId)) {
+      const entryRegex = /id="entry-([a-zA-Z0-9_-]+)"[\s\S]*?<div[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/div>/gi;
+      let match: RegExpExecArray | null;
+      while ((match = entryRegex.exec(html)) !== null) {
+        const fId = match[1];
+        const fName = match[2].trim();
+        if (!seenIds.has(fId) && fId !== folderId && !visitedFolders.has(fId)) {
           seenIds.add(fId);
-          subFoldersToCrawl.push({ id: fId, name: fName });
-        }
-      }
-
-      // Fallback: Detectar archivos por enlace directo
-      const fileLinkRegex =
-        /href="(?:\/file\/d\/|https:\/\/drive\.google\.com\/file\/d\/|open\?id=)([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/gi;
-      let fileMatch: RegExpExecArray | null;
-      while ((fileMatch = fileLinkRegex.exec(html)) !== null) {
-        const fileId = fileMatch[1];
-        const fileName = fileMatch[2].trim();
-        if (!seenIds.has(fileId)) {
-          seenIds.add(fileId);
           allItems.push({
-            id: fileId,
-            name: fileName,
-            mimeType: fileName.toLowerCase().endsWith(".pdf")
+            id: fId,
+            name: fName,
+            mimeType: fName.toLowerCase().endsWith(".pdf")
               ? "application/pdf"
-              : fileName.toLowerCase().endsWith(".docx")
+              : fName.toLowerCase().endsWith(".docx")
               ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               : "application/octet-stream",
             folderPath: currentPath || undefined,
@@ -332,17 +334,18 @@ export async function fetchGoogleDriveFolderFiles(
         subPath,
         currentDepth + 1,
         maxDepth,
-        visitedFolders
+        visitedFolders,
+        debugLogs
       );
       allItems.push(...subFiles);
     }
 
     return allItems;
   } catch (err) {
-    console.error("Error al procesar carpeta de Google Drive:", err);
+    debugLogs.push(`[Error in ${folderId}] ${String(err)}`);
     if (currentDepth === 0 && allItems.length === 0) {
       throw new Error(
-        "No se pudo leer el contenido de la carpeta. Asegúrate de que el enlace de la carpeta esté en modo público ('Cualquier persona con el enlace puede ver')."
+        `No se pudo leer el contenido de la carpeta de Google Drive: ${err instanceof Error ? err.message : String(err)}`
       );
     }
     return allItems;

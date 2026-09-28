@@ -21,12 +21,21 @@ export async function POST(req: Request) {
 
     // CASO 1: Es un enlace a una CARPETA de Google Drive
     if (folderId) {
-      const folderFiles = await fetchGoogleDriveFolderFiles(folderId);
+      const debugLogs: string[] = [];
+      const folderFiles = await fetchGoogleDriveFolderFiles(
+        folderId,
+        "",
+        0,
+        4,
+        new Set<string>(),
+        debugLogs
+      );
 
       if (folderFiles.length === 0) {
         return NextResponse.json(
           {
             error: "No se encontraron archivos en la carpeta de Google Drive. Asegúrate de que contenga documentos y que los permisos estén configurados como públicos ('Cualquier persona con el enlace').",
+            debugLogs,
           },
           { status: 404 }
         );

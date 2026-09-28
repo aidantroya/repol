@@ -110,6 +110,7 @@ export default function UploadPage() {
   const [inputDriveUrl, setInputDriveUrl] = useState("");
   const [isVerifyingSingleDrive, setIsVerifyingSingleDrive] = useState(false);
   const [driveError, setDriveError] = useState("");
+  const [driveDebugLogs, setDriveDebugLogs] = useState<string[]>([]);
 
   // Input de anexos con Google Drive
   const [activeDriveAttachmentItemId, setActiveDriveAttachmentItemId] = useState<string | null>(null);
@@ -309,6 +310,9 @@ export default function UploadPage() {
 
       const data = await res.json();
       if (!res.ok) {
+        if (data.debugLogs && Array.isArray(data.debugLogs)) {
+          setDriveDebugLogs(data.debugLogs);
+        }
         throw new Error(data.error || "No se pudo procesar el enlace de Google Drive");
       }
 
@@ -818,7 +822,19 @@ export default function UploadPage() {
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-emerald-500 focus:outline-none mb-2"
             />
             {driveError && (
-              <p className="text-[11px] text-rose-400 mb-2">{driveError}</p>
+              <div className="mb-3">
+                <p className="text-[11px] text-rose-400 font-medium">{driveError}</p>
+                {driveDebugLogs.length > 0 && (
+                  <details className="mt-2 rounded-lg bg-zinc-950 p-2 text-[10px] text-zinc-400 border border-zinc-800">
+                    <summary className="cursor-pointer font-mono text-zinc-300 select-none hover:text-white">
+                      Ver diagnóstico técnico ({driveDebugLogs.length} eventos)
+                    </summary>
+                    <pre className="mt-1.5 max-h-36 overflow-y-auto whitespace-pre-wrap font-mono text-zinc-400 leading-tight">
+                      {driveDebugLogs.join("\n")}
+                    </pre>
+                  </details>
+                )}
+              </div>
             )}
           </div>
 
