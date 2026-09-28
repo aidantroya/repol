@@ -13,7 +13,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
   const fromEmail = process.env.SMTP_FROM || process.env.BREVO_FROM || process.env.RESEND_FROM || "no-reply@repol.espol.edu.ec";
-  const senderName = "RePol ESPOL";
+  const senderName = process.env.BREVO_SENDER_NAME || process.env.SMTP_FROM_NAME || "RePol";
 
   const subject = `Código de verificación RePol: ${otp}`;
   const htmlContent = `
@@ -22,16 +22,16 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
       <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Código de Verificación ESPOL</title>
+        <title>Código de Verificación - RePol</title>
       </head>
       <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #09090b; color: #f4f4f5; margin: 0; padding: 24px;">
         <div style="max-width: 480px; margin: 0 auto; background-color: #18181b; border: 1px solid #27272a; border-radius: 16px; padding: 32px; text-align: center;">
           <div style="display: inline-block; background-color: rgba(59, 130, 246, 0.15); border: 1px solid rgba(59, 130, 246, 0.3); color: #93c5fd; padding: 6px 14px; border-radius: 9999px; font-size: 12px; font-weight: 600; margin-bottom: 20px;">
-            🎓 Repositorio Académico ESPOL
+            🎓 RePol
           </div>
           <h1 style="font-size: 22px; font-weight: 800; color: #ffffff; margin: 0 0 8px 0;">Tu Código de Verificación</h1>
           <p style="font-size: 14px; color: #a1a1aa; line-height: 1.5; margin: 0 0 24px 0;">
-            Ingresa este código de seguridad de 6 dígitos para acceder a <strong>RePol</strong> con tu cuenta institucional.
+            Ingresa este código de seguridad de 6 dígitos para acceder a <strong>RePol</strong> con tu correo institucional.
           </p>
           
           <div style="background-color: #09090b; border: 2px dashed #3b82f6; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
@@ -48,7 +48,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
           </p>
 
           <div style="font-size: 11px; color: #52525b; border-top: 1px solid #27272a; padding-top: 16px; margin-top: 24px;">
-            © ${new Date().getFullYear()} RePol • Escuela Superior Politécnica del Litoral
+            © ${new Date().getFullYear()} RePol
           </div>
         </div>
       </body>
