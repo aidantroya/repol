@@ -6,8 +6,89 @@ import { prisma } from "@/lib/prisma";
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 días para mantener la sesión iniciada
   },
   providers: [
+    // Proveedor Oficial de Correo Institucional ESPOL con Código OTP
+    CredentialsProvider({
+      id: "espol-otp",
+      name: "Correo Institucional ESPOL",
+      credentials: {
+        email: { label: "Correo Institucional", type: "email", placeholder: "usuario@espol.edu.ec" },
+        otp: { label: "Código de Verificación", type: "text", placeholder: "123456" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.otp) {
+          throw new Error("El correo y el código de verificación son obligatorios.");
+        }
+
+        const email = credentials.email.trim().toLowerCase();
+        const otp = credentials.otp.trim();
+
+        // 1. Validar dominio institucional obligatorio
+        if (!email.endsWith("@espol.edu.ec")) {
+          throw new Error("Solo se permite el ingreso con correos oficiales @espol.edu.ec.");
+        }
+
+        // 2. Verificar el token OTP en la base de datos
+        const tokenRecord = await prisma.verificationToken.findFirst({
+          where: {
+            identifier: email,
+            token: otp,
+          },
+        });
+
+        if (!tokenRecord) {
+          throw new Error("Código de verificación incorrecto.");
+        }
+
+        if (tokenRecord.expires < new Date()) {
+          // Eliminar token caducado
+          await prisma.verificationToken.deleteMany({
+            where: { identifier: email },
+          });
+          throw new Error("El código de verificación ha expirado. Por favor, solicita uno nuevo.");
+        }
+
+        // 3. Eliminar el token usado para evitar reuso
+        await prisma.verificationToken.deleteMany({
+          where: { identifier: email },
+        });
+
+        // 4. Buscar o crear el usuario en la base de datos
+        const usernamePrefix = email.split("@")[0];
+        const formattedName = usernamePrefix
+          .replace(/[._-]/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase());
+
+        let user = await prisma.user.findUnique({
+          where: { email },
+        });
+
+        if (!user) {
+          user = await prisma.user.create({
+            data: {
+              email,
+              name: formattedName,
+              role: "STUDENT",
+              approvedContributions: 0,
+              image: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
+            },
+          });
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          image: user.image,
+          role: user.role,
+          approvedContributions: user.approvedContributions,
+        };
+      },
+    }),
+
+    // Proveedor Google OAuth opcional (restringido a @espol.edu.ec)
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? [
           GoogleProvider({
@@ -16,87 +97,34 @@ export const authOptions: NextAuthOptions = {
           }),
         ]
       : []),
-    // Proveedor de desarrollo / demo para pruebas inmediatas si aún no se configuran credenciales de Google Cloud
-    CredentialsProvider({
-      id: "demo-login",
-      name: "Acceso Demo Universitario",
-      credentials: {
-        email: { label: "Correo Universitario", type: "email", placeholder: "estudiante@universidad.edu" },
-        name: { label: "Nombre Completo", type: "text", placeholder: "Aidan Estudiante" },
-        role: { label: "Rol Simulado", type: "text", placeholder: "STUDENT o ADMIN" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email) return null;
-
-        const role = (credentials.role === "ADMIN" ? "ADMIN" : "STUDENT") as "ADMIN" | "STUDENT";
-
-        // Buscar o crear usuario en la base de datos
-        try {
-          let user = await prisma.user.findUnique({
-            where: { email: credentials.email },
-          });
-
-          if (!user) {
-            user = await prisma.user.create({
-              data: {
-                email: credentials.email,
-                name: credentials.name || "Usuario Universitario",
-                role: role,
-                approvedContributions: role === "ADMIN" ? 12 : 3,
-                image: `https://api.dicebear.com/7.x/bottts/svg?seed=${credentials.email}`,
-              },
-            });
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.image,
-            role: user.role,
-            approvedContributions: user.approvedContributions,
-          };
-        } catch (error) {
-          console.warn("DB not connected yet, using in-memory demo session:", error);
-          return {
-            id: "demo-user-id",
-            email: credentials.email,
-            name: credentials.name || "Estudiante Demo",
-            image: `https://api.dicebear.com/7.x/bottts/svg?seed=${credentials.email}`,
-            role: role,
-            approvedContributions: role === "ADMIN" ? 12 : 3,
-          };
-        }
-      },
-    }),
   ],
   callbacks: {
     async signIn({ user, account }) {
       if (account?.provider === "google") {
-        const allowedDomain = process.env.ALLOWED_EMAIL_DOMAIN;
-        if (allowedDomain && !user.email?.endsWith(allowedDomain)) {
-          return false; // Rechazar si no pertenece al dominio universitario permitido
+        if (!user.email?.toLowerCase().endsWith("@espol.edu.ec")) {
+          return false; // Rechazar si no es @espol.edu.ec
         }
 
         try {
           if (user.email) {
+            const email = user.email.toLowerCase();
             const existingUser = await prisma.user.findUnique({
-              where: { email: user.email },
+              where: { email },
             });
 
             if (!existingUser) {
               await prisma.user.create({
                 data: {
-                  email: user.email,
-                  name: user.name ?? "Estudiante",
-                  image: user.image,
+                  email,
+                  name: user.name ?? email.split("@")[0],
+                  image: user.image || `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
                   role: "STUDENT",
                 },
               });
             }
           }
         } catch (e) {
-          console.error("Error synchronizing Google user in DB:", e);
+          console.error("Error al sincronizar usuario Google:", e);
         }
       }
       return true;
