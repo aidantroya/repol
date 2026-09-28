@@ -1,4 +1,5 @@
 import { NextAuthOptions } from "next-auth";
+import AzureADProvider from "next-auth/providers/azure-ad";
 import GoogleProvider from "next-auth/providers/google";
 import { prisma } from "@/lib/prisma";
 
@@ -8,20 +9,38 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 días de sesión persistente
   },
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+    // Proveedor Oficial de Microsoft 365 / Azure Entra ID para cuentas de la ESPOL
+    AzureADProvider({
+      clientId: process.env.AZURE_AD_CLIENT_ID || process.env.MICROSOFT_CLIENT_ID || "",
+      clientSecret: process.env.AZURE_AD_CLIENT_SECRET || process.env.MICROSOFT_CLIENT_SECRET || "",
+      tenantId: process.env.AZURE_AD_TENANT_ID || "common", // Permite autenticación con cuentas organizacionales/universitarias
       authorization: {
         params: {
+          scope: "openid profile email User.Read",
           prompt: "select_account",
-          hd: "espol.edu.ec", // Sugiere y filtra directamente las cuentas @espol.edu.ec
         },
       },
     }),
+
+    // Proveedor alternativo Google OAuth
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+            authorization: {
+              params: {
+                prompt: "select_account",
+                hd: "espol.edu.ec",
+              },
+            },
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ user, account }) {
-      if (account?.provider === "google") {
+      if (account?.provider === "azure-ad" || account?.provider === "google") {
         const email = user.email?.toLowerCase().trim();
 
         // Validación estricta del dominio oficial de la ESPOL
