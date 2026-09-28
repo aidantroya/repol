@@ -1,14 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { 
   Download, 
   Eye, 
-  Calendar, 
   GraduationCap, 
-  User,
-  Share2,
-  Paperclip
+  User, 
+  Share2, 
+  Paperclip,
+  Trash2,
+  Loader2
 } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
@@ -54,8 +56,13 @@ export interface DocumentItem {
 }
 
 export function DocumentCard({ doc }: { doc: DocumentItem }) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === "ADMIN";
+
   const [downloads, setDownloads] = useState(doc.downloadCount);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDeleted, setIsDeleted] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
 
   const handleDownload = async () => {
@@ -75,6 +82,34 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
       setIsDownloading(false);
     }
   };
+
+  const handleDeleteDocument = async () => {
+    if (!window.confirm(`¿Confirmas la eliminación permanente de "${doc.title}" del repositorio oficial?`)) {
+      return;
+    }
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: doc.id }),
+      });
+      if (res.ok) {
+        setIsDeleted(true);
+        setIsViewerOpen(false);
+      } else {
+        const data = await res.json();
+        alert(data.error || "No se pudo eliminar el documento.");
+      }
+    } catch (e) {
+      console.error("Error al eliminar:", e);
+      alert("Error de conexión al intentar eliminar el documento.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (isDeleted) return null;
 
   const careersList = doc.subject.careers || [];
   const primaryCareerName = careersList.length > 0 ? careersList[0].career.name : "ESPOL";
@@ -108,24 +143,20 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
                 </span>
               )}
             </div>
-
-            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400">
-              <Calendar className="h-3.5 w-3.5 text-zinc-500" />
-              <span>{doc.periodYear} - {doc.periodTerm}</span>
+            
+            <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 font-mono bg-zinc-950/80 px-2 py-0.5 rounded-md border border-zinc-800">
+              <span>{doc.periodYear}</span>
+              <span className="text-zinc-600">•</span>
+              <span className="text-blue-400 font-bold">{doc.periodTerm}</span>
             </div>
           </div>
 
-          {/* Título del documento */}
-          <button
-            onClick={() => setIsViewerOpen(true)}
-            className="text-left w-full text-base font-semibold text-zinc-100 group-hover:text-blue-400 transition-colors line-clamp-2"
-          >
+          <h3 className="text-base font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-2">
             {doc.title}
-          </button>
+          </h3>
 
-          {/* Descripción opcional o descripción personalizada si es "Otro" */}
           {(doc.customDescription || doc.description) && (
-            <p className="mt-2 text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+            <p className="mt-2 text-xs text-zinc-400 line-clamp-2 leading-relaxed bg-zinc-950/40 p-2 rounded-lg border border-zinc-800/40">
               {doc.customDescription || doc.description}
             </p>
           )}
@@ -182,6 +213,17 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
             >
               <Download className="h-4 w-4" />
             </button>
+
+            {isAdmin && (
+              <button
+                onClick={handleDeleteDocument}
+                disabled={isDeleting}
+                className="flex items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-rose-400 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition"
+                title="Eliminar documento del repositorio (Solo Administrador)"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              </button>
+            )}
           </div>
         </div>
       </div>

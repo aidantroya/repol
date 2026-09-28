@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
@@ -89,5 +91,32 @@ export async function PATCH(req: Request) {
   } catch (error) {
     console.error("Error incrementing downloads:", error);
     return NextResponse.json({ error: "Error al registrar descarga" }, { status: 500 });
+  }
+}
+
+// Eliminar documento oficial del repositorio (Exclusivo para ADMIN)
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || session.user.role !== "ADMIN") {
+      return NextResponse.json(
+        { error: "Acceso denegado: Solo el Administrador principal puede eliminar documentos del repositorio." },
+        { status: 403 }
+      );
+    }
+
+    const { id } = await req.json();
+    if (!id) {
+      return NextResponse.json({ error: "ID del documento requerido" }, { status: 400 });
+    }
+
+    await prisma.document.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ success: true, message: "Documento eliminado correctamente." });
+  } catch (error) {
+    console.error("Error al eliminar documento:", error);
+    return NextResponse.json({ error: "Error interno al eliminar documento" }, { status: 500 });
   }
 }

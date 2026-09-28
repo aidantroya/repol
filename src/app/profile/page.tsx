@@ -141,9 +141,13 @@ export default function ProfilePage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-white">{user?.name || "Estudiante"}</h1>
-                {isAdmin ? (
+                {user?.role === "ADMIN" ? (
                   <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Administrador
+                    <ShieldCheck className="h-3.5 w-3.5" /> Administrador Principal
+                  </span>
+                ) : user?.role === "MODERATOR" ? (
+                  <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-bold text-indigo-300">
+                    <ShieldCheck className="h-3.5 w-3.5" /> Moderador Académico
                   </span>
                 ) : (
                   <span className="rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-xs font-medium text-blue-400">
@@ -164,17 +168,17 @@ export default function ProfilePage() {
           </Link>
         </div>
 
-        {/* Sección de Meta de 10 Contribuciones para Administrador */}
-        {!isAdmin && (
+        {/* Sección de Meta de 10 Contribuciones para Moderador */}
+        {user?.role === "STUDENT" && (
           <div className="mt-8 rounded-2xl border border-zinc-800/80 bg-zinc-950/70 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <div className="flex items-center gap-2 text-sm font-bold text-white">
                   <Award className={`h-5 w-5 ${contributions >= 10 ? "text-amber-400" : "text-zinc-400"}`} />
-                  <span>Meta de Moderación: Rango de Administrador</span>
+                  <span>Meta de Contribución: Rango de Moderador</span>
                 </div>
                 <p className="text-xs text-zinc-400 mt-1 max-w-xl">
-                  Alcanza **10 documentos aprobados** por la comunidad para desbloquear el derecho a solicitar permisos de Administrador y moderar la plataforma.
+                  Alcanza **10 documentos aprobados** por la comunidad para desbloquear el derecho a solicitar permisos de Moderador y ayudar a revisar solicitudes de subida.
                 </p>
               </div>
 
@@ -190,7 +194,7 @@ export default function ProfilePage() {
                   ) : (
                     <Sparkles className="h-4 w-4" />
                   )}
-                  <span>{promotionRequested ? "Solicitud en Revisión" : "¡Solicitar Rango Admin!"}</span>
+                  <span>{promotionRequested ? "Solicitud en Revisión" : "¡Solicitar Rango Moderador!"}</span>
                 </button>
               ) : (
                 <div className="text-right">

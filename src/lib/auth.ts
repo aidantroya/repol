@@ -2,6 +2,8 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/lib/prisma";
 
+export const SUPER_ADMIN_EMAILS = ["aidtroya@espol.edu.ec"];
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -53,7 +55,11 @@ export const authOptions: NextAuthOptions = {
           where: { identifier: email },
         });
 
-        // 4. Buscar o registrar el usuario en la base de datos
+        // 4. Determinar si es Super Administrador
+        const isSuperAdmin = SUPER_ADMIN_EMAILS.includes(email);
+        const role = isSuperAdmin ? "ADMIN" : "STUDENT";
+
+        // 5. Buscar o registrar el usuario en la base de datos
         const usernamePrefix = email.split("@")[0];
         const formattedName = usernamePrefix
           .replace(/[._-]/g, " ")
@@ -68,10 +74,15 @@ export const authOptions: NextAuthOptions = {
             data: {
               email,
               name: formattedName,
-              role: "STUDENT",
-              approvedContributions: 0,
+              role: role,
+              approvedContributions: isSuperAdmin ? 10 : 0,
               image: `https://api.dicebear.com/7.x/bottts/svg?seed=${email}`,
             },
+          });
+        } else if (isSuperAdmin && user.role !== "ADMIN") {
+          user = await prisma.user.update({
+            where: { email },
+            data: { role: "ADMIN" },
           });
         }
 
@@ -90,8 +101,13 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id;
+        token.email = user.email;
         token.role = (user as { role?: string }).role || "STUDENT";
         token.approvedContributions = (user as { approvedContributions?: number }).approvedContributions || 0;
+      }
+
+      if (token.email && SUPER_ADMIN_EMAILS.includes((token.email as string).toLowerCase())) {
+        token.role = "ADMIN";
       }
 
       if (trigger === "update" && session) {
@@ -106,6 +122,10 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         session.user.role = (token.role as "STUDENT" | "MODERATOR" | "ADMIN") || "STUDENT";
         session.user.approvedContributions = (token.approvedContributions as number) || 0;
+
+        if (session.user.email && SUPER_ADMIN_EMAILS.includes(session.user.email.toLowerCase())) {
+          session.user.role = "ADMIN";
+        }
       }
       return session;
     },
