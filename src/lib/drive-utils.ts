@@ -123,6 +123,7 @@ export interface DriveItem {
 
 function isDriveFolder(entryName: string, entryContent: string): boolean {
   const lowerName = entryName.toLowerCase().trim();
+  const lowerContent = entryContent.toLowerCase();
 
   // 1. Si tiene extensión de archivo conocida, NUNCA es carpeta
   const fileExtensions = [
@@ -134,25 +135,43 @@ function isDriveFolder(entryName: string, entryContent: string): boolean {
     return false;
   }
 
-  // 2. Si contiene enlace explícito a visualizador de archivo de Drive
-  if (entryContent.includes("/file/d/") || entryContent.includes("flipview-icon-file") || entryContent.includes("icon-file")) {
+  // 2. Si contiene enlace explícito a archivo, documento o visor de Drive
+  if (
+    lowerContent.includes("/file/d/") ||
+    lowerContent.includes("docs.google.com") ||
+    lowerContent.includes("flipview-icon-file") ||
+    lowerContent.includes("icon-file") ||
+    lowerContent.includes("icon-pdf") ||
+    lowerContent.includes("icon-doc") ||
+    lowerContent.includes("icon-presentation") ||
+    lowerContent.includes("icon-spreadsheet") ||
+    lowerContent.includes("open?id=")
+  ) {
     return false;
   }
 
-  // 3. Si contiene iconos de carpeta o enlaces específicos a carpetas
+  // 3. Si contiene iconos o atributos explícitos de carpeta
   if (
-    entryContent.includes("flipview-icon-folder") ||
-    entryContent.includes("folder-icon") ||
-    entryContent.includes("icon-folder") ||
-    entryContent.includes("drive-icon-folder") ||
-    entryContent.includes("/drive/folders/") ||
-    entryContent.includes("data-target=\"folder\"")
+    lowerContent.includes("flipview-icon-folder") ||
+    lowerContent.includes("folder-icon") ||
+    lowerContent.includes("icon-folder") ||
+    lowerContent.includes("drive-icon-folder") ||
+    lowerContent.includes("/drive/folders/") ||
+    lowerContent.includes("data-target=\"folder\"") ||
+    lowerContent.includes("aria-label=\"carpeta\"") ||
+    lowerContent.includes("aria-label=\"folder\"")
   ) {
     return true;
   }
 
-  // 4. Si no tiene extensión y su nombre parece carpeta (ej. "CLASES", "EXAMENES", "Unidad 1")
-  return !lowerName.includes(".");
+  // 4. Si el nombre sugiere una carpeta contenedora
+  const folderKeywords = ["clases", "clase", "examenes", "examen", "lecciones", "leccion", "talleres", "taller", "deberes", "unidad", "capitulo", "parcial", "final", "apuntes"];
+  if (folderKeywords.some((kw) => lowerName === kw || lowerName.startsWith(kw + " "))) {
+    return true;
+  }
+
+  // Por defecto, tratar como archivo
+  return false;
 }
 
 /**
