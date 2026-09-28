@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" width="640" height="160">
+  <defs>
+    <linearGradient id="repol-grad-full" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <filter id="repol-shadow-full" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#4f46e5" flood-opacity="0.3" />
+    </filter>
+  </defs>
+
+  <!-- Icono Izquierdo Cuadrado -->
+  <g transform="translate(20, 20)">
+    <rect 
+      x="0" 
+      y="0" 
+      width="120" 
+      height="120" 
+      rx="30" 
+      fill="url(#repol-grad-full)" 
+      filter="url(#repol-shadow-full)"
+    />
+    <rect 
+      x="1" 
+      y="1" 
+      width="118" 
+      height="118" 
+      rx="29" 
+      fill="none" 
+      stroke="#ffffff" 
+      stroke-width="2" 
+      stroke-opacity="0.25"
+    />
+    <!-- BookOpen Icon -->
+    <g transform="translate(30, 30) scale(2.5)" stroke="#ffffff" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </g>
+  </g>
+
+  <!-- Tipografía RePol -->
+  <text x="165" y="92" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="64" font-weight="900" letter-spacing="-1.5">
+    <tspan fill="#ffffff">Re</tspan><tspan fill="#3b82f6">Pol</tspan>
+  </text>
+
+  <!-- Insignia Académico -->
+  <g transform="translate(355, 48)">
+    <rect x="0" y="0" width="115" height="32" rx="8" fill="rgba(59, 130, 246, 0.15)" stroke="rgba(59, 130, 246, 0.4)" stroke-width="1.5" />
+    <text x="57" y="21" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="700" fill="#60a5fa" text-anchor="middle">
+      Académico
+    </text>
+  </g>
+
+  <!-- Subtítulo -->
+  <text x="168" y="124" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="500" fill="#9ca3af">
+    Repositorio Universitario Colaborativo
+  </text>
+</svg>
