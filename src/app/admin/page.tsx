@@ -19,6 +19,39 @@ import {
 } from "lucide-react";
 import { getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 
+const REJECTION_PRESETS = [
+  {
+    id: "LOW_RESOLUTION",
+    label: "Baja resolución / Ilegible",
+    desc: "El escaneo o las fotos están borrosas o no se leen con claridad.",
+  },
+  {
+    id: "INCOMPLETE",
+    label: "Incompleto o cortado",
+    desc: "Faltan páginas, preguntas o partes esenciales del documento.",
+  },
+  {
+    id: "WRONG_SUBJECT",
+    label: "Materia / Código incorrecto",
+    desc: "El contenido no corresponde a la asignatura o código seleccionado.",
+  },
+  {
+    id: "WRONG_TERM",
+    label: "Período / Término incorrecto",
+    desc: "El año o término académico (1PAO/2PAO) no coincide con la fecha del material.",
+  },
+  {
+    id: "DUPLICATE",
+    label: "Documento duplicado",
+    desc: "Este material ya se encuentra publicado en el catálogo oficial.",
+  },
+  {
+    id: "OTHER",
+    label: "Otro motivo (Personalizado)",
+    desc: "Escribe un motivo personalizado a continuación.",
+  },
+];
+
 interface ReportItem {
   id: string;
   documentId: string;
@@ -118,6 +151,7 @@ export default function AdminDashboardPage() {
   // Modal de rechazo
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedSubId, setSelectedSubId] = useState<string | null>(null);
+  const [selectedPreset, setSelectedPreset] = useState<string>("LOW_RESOLUTION");
   const [rejectionReason, setRejectionReason] = useState("");
 
   const user = session?.user;
@@ -449,6 +483,8 @@ export default function AdminDashboardPage() {
                     <button
                       onClick={() => {
                         setSelectedSubId(sub.id);
+                        setSelectedPreset("LOW_RESOLUTION");
+                        setRejectionReason(REJECTION_PRESETS[0].desc);
                         setRejectModalOpen(true);
                       }}
                       disabled={actionLoading === sub.id}
@@ -655,36 +691,92 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Modal de Motivo de Rechazo */}
+      {/* Modal de Motivo de Rechazo con Opciones por Defecto y Mensaje Personalizado */}
       {rejectModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-zinc-800 bg-zinc-900 p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-2">Motivo del Rechazo</h3>
-            <p className="text-xs text-zinc-400 mb-4">
-              Indica al estudiante por qué este documento no fue aprobado (ej. resolución borrosa, contenido incompleto, materia equivocada):
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-7 shadow-2xl space-y-5">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <X className="h-4 w-4" />
+                </span>
+                <span>Motivo del Rechazo</span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                Selecciona una razón predefinida o escribe una indicación detallada para notificar al estudiante.
+              </p>
+            </div>
 
-            <textarea
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Ejemplo: Las fotos de la lección están cortadas o no se aprecia el desarrollo del ejercicio 3..."
-              rows={4}
-              className="w-full rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-xs text-zinc-200 focus:border-blue-500 focus:outline-none mb-4"
-            />
+            {/* Opciones por Defecto (Presets) */}
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-zinc-300">
+                Seleccionar motivo común:
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {REJECTION_PRESETS.map((preset) => {
+                  const isSelected = selectedPreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedPreset(preset.id);
+                        if (preset.id === "OTHER") {
+                          setRejectionReason("");
+                        } else {
+                          setRejectionReason(preset.desc);
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border text-left transition text-xs ${
+                        isSelected
+                          ? "border-rose-500/60 bg-rose-500/10 text-white ring-1 ring-rose-500/40 font-semibold"
+                          : "border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800 text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-bold">{preset.label}</div>
+                      {preset.id !== "OTHER" && (
+                        <div className="text-[10px] text-zinc-400 line-clamp-1 mt-0.5">{preset.desc}</div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-            <div className="flex justify-end gap-2">
+            {/* Campo de Texto Personalizado / Editable */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-zinc-300">
+                Detalle del mensaje al usuario {selectedPreset === "OTHER" ? <span className="text-rose-400">* (Obligatorio)</span> : <span className="text-zinc-500 font-normal">(Editable)</span>}:
+              </label>
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder={
+                  selectedPreset === "OTHER"
+                    ? "Explica detalladamente por qué no se puede aceptar este documento..."
+                    : "Puedes ajustar este texto si deseas añadir detalles específicos..."
+                }
+                rows={3}
+                className="w-full rounded-xl border border-zinc-700 bg-zinc-900/80 p-3 text-xs text-zinc-100 placeholder-zinc-500 focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-800/80">
               <button
+                type="button"
                 onClick={() => setRejectModalOpen(false)}
-                className="rounded-xl border border-zinc-700 bg-zinc-800 px-4 py-2 text-xs font-semibold text-zinc-300 hover:bg-zinc-700"
+                className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-4 py-2 text-xs font-semibold text-zinc-300 transition"
               >
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleConfirmReject}
                 disabled={!rejectionReason.trim()}
-                className="rounded-xl bg-rose-600 hover:bg-rose-500 px-4 py-2 text-xs font-semibold text-white disabled:opacity-50"
+                className="flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 px-4 py-2 text-xs font-bold text-white shadow-md shadow-rose-600/20 transition active:scale-95"
               >
-                Confirmar Rechazo
+                <X className="h-3.5 w-3.5" />
+                <span>Confirmar Rechazo</span>
               </button>
             </div>
           </div>
