@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { 
   Download, 
@@ -11,11 +11,13 @@ import {
   Paperclip,
   Trash2,
   Loader2,
-  Flag
+  Flag,
+  Edit3
 } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
 import { ReportDocumentModal } from "./ReportDocumentModal";
+import { EditDocumentModal } from "./EditDocumentModal";
 
 export interface AttachmentItem {
   name: string;
@@ -57,18 +59,32 @@ export interface DocumentItem {
   };
 }
 
-export function DocumentCard({ doc }: { doc: DocumentItem }) {
+export function DocumentCard({ 
+  doc: initialDoc,
+  onUpdated,
+}: { 
+  doc: DocumentItem;
+  onUpdated?: (updatedDoc: DocumentItem) => void;
+}) {
   const { data: session } = useSession();
   const isAdmin = session?.user?.role === "ADMIN";
   const isModerator = session?.user?.role === "MODERATOR";
-  const canViewUploader = isAdmin || isModerator;
+  const canEditOrManage = isAdmin || isModerator;
 
-  const [downloads, setDownloads] = useState(doc.downloadCount);
+  const [doc, setDoc] = useState<DocumentItem>(initialDoc);
+  const [downloads, setDownloads] = useState(initialDoc.downloadCount);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDeleted, setIsDeleted] = useState(false);
   const [isViewerOpen, setIsViewerOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+
+  // Sincronizar si cambia initialDoc externamente
+  useEffect(() => {
+    setDoc(initialDoc);
+    setDownloads(initialDoc.downloadCount);
+  }, [initialDoc]);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -114,6 +130,13 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
     }
   };
 
+  const handleDocUpdated = (updatedDoc: DocumentItem) => {
+    setDoc(updatedDoc);
+    if (onUpdated) {
+      onUpdated(updatedDoc);
+    }
+  };
+
   if (isDeleted) return null;
 
   const careersList = doc.subject.careers || [];
@@ -128,14 +151,10 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
             <div className="flex items-center gap-2">
-              <span
-                className={`rounded-lg border px-2.5 py-1 text-xs font-semibold uppercase tracking-wider ${getCategoryBadgeColor(
-                  doc.category
-                )}`}
-              >
+              <span className={`rounded-lg px-2.5 py-1 text-xs font-bold border ${getCategoryBadgeColor(doc.category)}`}>
                 {getCategoryLabel(doc.category)}
               </span>
-              <span className="rounded-md bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-300 border border-zinc-700">
+              <span className="rounded-lg bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-300 border border-zinc-700">
                 {doc.subcategory}
               </span>
               {doc.attachments && doc.attachments.length > 0 && (
@@ -197,7 +216,7 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
             <div className="flex items-center gap-1.5 truncate max-w-[180px]">
               <User className="h-3.5 w-3.5 text-zinc-500" />
               <span className="truncate">
-                {canViewUploader ? (doc.uploadedBy?.name || "Aporte Comunitario") : "Aporte Comunitario"}
+                {canEditOrManage ? (doc.uploadedBy?.name || "Aporte Comunitario") : "Aporte Comunitario"}
               </span>
             </div>
             <span className="text-[11px] text-zinc-500 font-mono">{formatBytes(doc.fileSize)}</span>
@@ -211,6 +230,17 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
               <Eye className="h-3.5 w-3.5" />
               <span>Ver Documento</span>
             </button>
+
+            {/* Botón de Edición para Administradores y Moderadores */}
+            {canEditOrManage && (
+              <button
+                onClick={() => setIsEditOpen(true)}
+                className="flex items-center justify-center rounded-xl border border-amber-500/30 bg-amber-500/10 p-2 text-amber-400 hover:bg-amber-600 hover:text-white hover:border-amber-600 transition"
+                title="Modificar año, período o metadatos (Admin/Moderador)"
+              >
+                <Edit3 className="h-4 w-4" />
+              </button>
+            )}
 
             <button
               onClick={handleDownload}
@@ -242,6 +272,16 @@ export function DocumentCard({ doc }: { doc: DocumentItem }) {
           </div>
         </div>
       </div>
+
+      {/* Modal de edición para Administradores y Moderadores */}
+      {canEditOrManage && (
+        <EditDocumentModal
+          isOpen={isEditOpen}
+          onClose={() => setIsEditOpen(false)}
+          document={doc}
+          onUpdated={handleDocUpdated}
+        />
+      )}
 
       {/* Modal de visualización de PDF */}
       <PdfViewerModal

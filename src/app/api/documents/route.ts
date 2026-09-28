@@ -155,3 +155,57 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: "Error interno al eliminar documento" }, { status: 500 });
   }
 }
+
+// Modificar metadatos de documento (Exclusivo para ADMIN y MODERATOR)
+export async function PUT(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user || (session.user.role !== "ADMIN" && session.user.role !== "MODERATOR")) {
+      return NextResponse.json(
+        { error: "Acceso denegado: Se requieren permisos de Administrador o Moderador para editar documentos." },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    const { id, title, description, customDescription, category, subcategory, periodYear, periodTerm, subjectId } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: "ID del documento requerido" }, { status: 400 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: any = {};
+    if (title !== undefined) updateData.title = String(title).trim();
+    if (description !== undefined) updateData.description = description ? String(description).trim() : null;
+    if (customDescription !== undefined) updateData.customDescription = customDescription ? String(customDescription).trim() : null;
+    if (category !== undefined) updateData.category = category;
+    if (subcategory !== undefined) updateData.subcategory = String(subcategory).trim();
+    if (periodYear !== undefined) updateData.periodYear = parseInt(String(periodYear), 10);
+    if (periodTerm !== undefined) updateData.periodTerm = String(periodTerm).trim();
+    if (subjectId !== undefined) updateData.subjectId = String(subjectId).trim();
+
+    const updatedDocument = await prisma.document.update({
+      where: { id },
+      data: updateData,
+      include: {
+        subject: {
+          include: {
+            careers: {
+              include: { career: true },
+            },
+          },
+        },
+        uploadedBy: {
+          select: { name: true, image: true, approvedContributions: true },
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true, document: updatedDocument });
+  } catch (error) {
+    console.error("Error al actualizar documento:", error);
+    return NextResponse.json({ error: "Error al actualizar documento" }, { status: 500 });
+  }
+}
+

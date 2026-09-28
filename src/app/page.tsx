@@ -239,6 +239,10 @@ export default function HomePage() {
     }));
   };
 
+  const handleDocUpdated = (updatedDoc: DocumentItem) => {
+    setDocuments((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
@@ -609,7 +613,7 @@ export default function HomePage() {
                             {isFolderOpen && (
                               <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-150">
                                 {folder.documents.map((doc) => (
-                                  <DocumentCard key={doc.id} doc={doc} />
+                                  <DocumentCard key={doc.id} doc={doc} onUpdated={handleDocUpdated} />
                                 ))}
                               </div>
                             )}
@@ -626,7 +630,7 @@ export default function HomePage() {
           /* =================== VISTA DE CUADRÍCULA ESTÁNDAR =================== */
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {documents.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} />
+              <DocumentCard key={doc.id} doc={doc} onUpdated={handleDocUpdated} />
             ))}
           </div>
         )}
