@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft, Flag } from "lucide-react";
-import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+import { formatBytes, getCategoryBadgeColor, getCategoryLabel, formatPeriodTerm } from "@/lib/utils";
 import { ReportDocumentModal } from "./ReportDocumentModal";
 
 export interface AttachmentItem {
@@ -102,7 +102,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
                 {getCategoryLabel(doc.category)}
               </span>
               <span className="text-xs font-semibold text-zinc-300 truncate">
-                {doc.subcategory} • {doc.periodYear}-{doc.periodTerm}
+                {doc.subcategory} • {doc.periodYear}-{formatPeriodTerm(doc.periodTerm)}
               </span>
               {hasAttachments && (
                 <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 border border-amber-500/20">

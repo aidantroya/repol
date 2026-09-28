@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { DocumentItem } from "./DocumentCard";
 import { SearchableSelect, SearchableOption } from "./SearchableSelect";
+import { formatPeriodTerm } from "@/lib/utils";
 
 interface EditDocumentModalProps {
   isOpen: boolean;
@@ -35,7 +36,7 @@ export function EditDocumentModal({
   const [customSubcategory, setCustomSubcategory] = useState("");
   const [customDescription, setCustomDescription] = useState(initialDoc.customDescription || "");
   const [periodYear, setPeriodYear] = useState<number>(initialDoc.periodYear || new Date().getFullYear());
-  const [periodTerm, setPeriodTerm] = useState<string>(initialDoc.periodTerm || "1T");
+  const [periodTerm, setPeriodTerm] = useState<string>(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
 
   const [subjectOptions, setSubjectOptions] = useState<SearchableOption[]>([]);
@@ -92,7 +93,7 @@ export function EditDocumentModal({
       setSubcategory(initialDoc.subcategory);
       setCustomDescription(initialDoc.customDescription || "");
       setPeriodYear(initialDoc.periodYear || new Date().getFullYear());
-      setPeriodTerm(initialDoc.periodTerm || "1T");
+      setPeriodTerm(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
       setErrorMessage("");
       setSuccessMessage("");
     }
@@ -264,16 +265,16 @@ export function EditDocumentModal({
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
                 <Layers className="h-3.5 w-3.5 text-blue-400" />
-                Término / Período (PAO) *
+                Período Académico (PAO) *
               </label>
               <select
                 value={periodTerm}
                 onChange={(e) => setPeriodTerm(e.target.value)}
                 className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
               >
-                <option value="1T">1T (Primer Término / 1PAO)</option>
-                <option value="2T">2T (Segundo Término / 2PAO)</option>
-                <option value="3T">3T (Tercer Término / Extra)</option>
+                <option value="1PAO">1PAO (Primer PAO)</option>
+                <option value="2PAO">2PAO (Segundo PAO)</option>
+                <option value="3PAO">3PAO (Tercer PAO)</option>
                 <option value="Intensivo">Intensivo (Vacacional)</option>
               </select>
             </div>

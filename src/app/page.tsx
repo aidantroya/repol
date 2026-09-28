@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
+import { formatPeriodTerm } from "@/lib/utils";
 import Link from "next/link";
 
 interface Career {
@@ -152,7 +153,12 @@ export default function HomePage() {
 
   // Agrupación jerárquica de documentos por Materia -> Carpetas de Categorías
   const groupedData = useMemo(() => {
-    const termOrder: Record<string, number> = { "3T": 3, "2T": 2, "1T": 1, "Intensivo": 0 };
+    const termOrder: Record<string, number> = {
+      "3PAO": 3, "3T": 3,
+      "2PAO": 2, "2T": 2,
+      "1PAO": 1, "1T": 1,
+      "Intensivo": 0,
+    };
     
     // Sort comparator
     const sortDocs = (a: DocumentItem, b: DocumentItem) => {
@@ -598,7 +604,7 @@ export default function HomePage() {
                               <div className="flex items-center gap-2 text-xs text-zinc-500">
                                 <span className="hidden sm:inline">
                                   {folder.documents[0]?.periodYear
-                                    ? `Más reciente: ${folder.documents[0].periodYear} - ${folder.documents[0].periodTerm}`
+                                    ? `Más reciente: ${folder.documents[0].periodYear} - ${formatPeriodTerm(folder.documents[0].periodTerm)}`
                                     : ""}
                                 </span>
                                 <ChevronRight
