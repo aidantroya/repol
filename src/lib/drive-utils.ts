@@ -121,11 +121,11 @@ export interface DriveItem {
   isFolder?: boolean;
 }
 
-function isDriveFolder(entryName: string, entryContent: string): boolean {
+function isDriveFolder(entryName: string, entryContent: string, entryId = ""): boolean {
   const lowerName = entryName.toLowerCase().trim();
   const lowerContent = entryContent.toLowerCase();
 
-  // 1. Si tiene extensión de archivo conocida, NUNCA es carpeta
+  // 1. Si el nombre tiene extensión de archivo conocida, NUNCA es carpeta
   const fileExtensions = [
     ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
     ".zip", ".rar", ".7z", ".txt", ".csv", ".png", ".jpg", ".jpeg",
@@ -135,29 +135,32 @@ function isDriveFolder(entryName: string, entryContent: string): boolean {
     return false;
   }
 
-  // 2. Si contiene enlace explícito a archivo, documento o visor de Drive
+  // 2. Si el contenido contiene enlace explícito a un archivo o visor de documento de Drive
   if (
     lowerContent.includes("/file/d/") ||
     lowerContent.includes("docs.google.com") ||
+    lowerContent.includes("drive.google.com/file") ||
+    lowerContent.includes("open?id=") ||
     lowerContent.includes("flipview-icon-file") ||
     lowerContent.includes("icon-file") ||
     lowerContent.includes("icon-pdf") ||
     lowerContent.includes("icon-doc") ||
     lowerContent.includes("icon-presentation") ||
     lowerContent.includes("icon-spreadsheet") ||
-    lowerContent.includes("open?id=") ||
     lowerContent.includes("data-target=\"file\"")
   ) {
     return false;
   }
 
-  // 3. Si contiene iconos o atributos explícitos de carpeta
+  // 3. Si contiene identificadores de carpeta o enlaces a vistas de carpeta
   if (
     lowerContent.includes("flipview-icon-folder") ||
     lowerContent.includes("folder-icon") ||
     lowerContent.includes("icon-folder") ||
     lowerContent.includes("drive-icon-folder") ||
     lowerContent.includes("/drive/folders/") ||
+    (entryId && lowerContent.includes(`id=${entryId}`)) ||
+    lowerContent.includes("embeddedfolderview?id=") ||
     lowerContent.includes("data-target=\"folder\"") ||
     lowerContent.includes("aria-label=\"carpeta\"") ||
     lowerContent.includes("aria-label=\"folder\"")
@@ -165,8 +168,8 @@ function isDriveFolder(entryName: string, entryContent: string): boolean {
     return true;
   }
 
-  // Por defecto, tratar como archivo
-  return false;
+  // 4. Si no tiene enlace a archivo /file/d/ ni extensión, es una carpeta contenedora
+  return true;
 }
 
 export interface CrawlResult {
@@ -283,7 +286,7 @@ export async function fetchGoogleDriveFolderFiles(
       const entryName = titleMatch ? titleMatch[1].trim() : `Elemento ${entryId}`;
 
       // Determinar si es una CARPETA o un ARCHIVO con precisión
-      const isFolder = isDriveFolder(entryName, entryContent);
+      const isFolder = isDriveFolder(entryName, entryContent, entryId);
 
       if (isFolder) {
         debugLogs.push(`[Subfolder detected] ${entryName} (${entryId})`);
