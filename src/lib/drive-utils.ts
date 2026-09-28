@@ -195,31 +195,45 @@ export async function fetchGoogleDriveFolderFiles(
     const seenIds = new Set<string>();
     const subFoldersToCrawl: Array<{ id: string; name: string }> = [];
 
-    // Detectar carpetas hijas dentro de la vista
-    const folderRegex = /href="https:\/\/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/g;
-    let folderMatch: RegExpExecArray | null;
-    while ((folderMatch = folderRegex.exec(html)) !== null) {
-      const fId = folderMatch[1];
-      const fName = folderMatch[2].trim();
-      if (fId !== folderId && !visitedFolders.has(fId)) {
-        subFoldersToCrawl.push({ id: fId, name: fName });
-      }
-    }
+    // Parsear cada fila <tr id="entry-XXXX"> de la vista de Google Drive
+    const trRegex = /<tr[^>]*id="entry-([a-zA-Z0-9_-]+)"([\s\S]*?)<\/tr>/gi;
+    let trMatch: RegExpExecArray | null;
 
-    // Detectar archivos por entrada de tabla
-    const entryRegex = /id="entry-([a-zA-Z0-9_-]+)"[\s\S]*?<div[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/div>/g;
-    let match: RegExpExecArray | null;
-    while ((match = entryRegex.exec(html)) !== null) {
-      const fId = match[1];
-      const fName = match[2].trim();
-      if (!seenIds.has(fId)) {
-        seenIds.add(fId);
+    while ((trMatch = trRegex.exec(html)) !== null) {
+      const entryId = trMatch[1];
+      const entryContent = trMatch[2];
+
+      if (entryId === folderId || visitedFolders.has(entryId) || seenIds.has(entryId)) {
+        continue;
+      }
+      seenIds.add(entryId);
+
+      // Extraer título / nombre del elemento
+      const titleMatch =
+        entryContent.match(/<div[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/div>/i) ||
+        entryContent.match(/<a[^>]*>([^<]+)<\/a>/i);
+      const entryName = titleMatch ? titleMatch[1].trim() : `Elemento ${entryId}`;
+
+      // Determinar si es una CARPETA o un ARCHIVO
+      const isFolder =
+        entryContent.includes("flipview-icon-folder") ||
+        entryContent.includes("folder-icon") ||
+        entryContent.includes("icon-folder") ||
+        entryContent.includes("drive-icon-folder") ||
+        entryContent.includes("embeddedfolderview?id=") ||
+        entryContent.includes("/folders/") ||
+        entryContent.includes("flipview-folder");
+
+      if (isFolder) {
+        subFoldersToCrawl.push({ id: entryId, name: entryName });
+      } else {
+        // Es un archivo real (.pdf, .docx, diapositivas, hojas, etc.)
         allItems.push({
-          id: fId,
-          name: fName,
-          mimeType: fName.toLowerCase().endsWith(".pdf")
+          id: entryId,
+          name: entryName,
+          mimeType: entryName.toLowerCase().endsWith(".pdf")
             ? "application/pdf"
-            : fName.toLowerCase().endsWith(".docx")
+            : entryName.toLowerCase().endsWith(".docx")
             ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
             : "application/octet-stream",
           folderPath: currentPath || undefined,
@@ -227,20 +241,35 @@ export async function fetchGoogleDriveFolderFiles(
       }
     }
 
-    // Detectar archivos por enlace directo
-    if (allItems.length === 0) {
-      const linkRegex = /href="https:\/\/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/g;
-      while ((match = linkRegex.exec(html)) !== null) {
-        const fId = match[1];
-        const fName = match[2].trim();
-        if (!seenIds.has(fId) && fName) {
+    // Fallback: Detectar carpetas explícitas por enlace si no hubo filas de tabla
+    if (subFoldersToCrawl.length === 0 && allItems.length === 0) {
+      const folderLinkRegex =
+        /href="(?:\/drive\/folders\/|https:\/\/drive\.google\.com\/drive\/folders\/|embeddedfolderview\?id=)([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/gi;
+      let fMatch: RegExpExecArray | null;
+      while ((fMatch = folderLinkRegex.exec(html)) !== null) {
+        const fId = fMatch[1];
+        const fName = fMatch[2].trim();
+        if (fId !== folderId && !visitedFolders.has(fId) && !seenIds.has(fId)) {
           seenIds.add(fId);
+          subFoldersToCrawl.push({ id: fId, name: fName });
+        }
+      }
+
+      // Fallback: Detectar archivos por enlace directo
+      const fileLinkRegex =
+        /href="(?:\/file\/d\/|https:\/\/drive\.google\.com\/file\/d\/|open\?id=)([a-zA-Z0-9_-]+)[^"]*"[^>]*>([^<]+)<\/a>/gi;
+      let fileMatch: RegExpExecArray | null;
+      while ((fileMatch = fileLinkRegex.exec(html)) !== null) {
+        const fileId = fileMatch[1];
+        const fileName = fileMatch[2].trim();
+        if (!seenIds.has(fileId)) {
+          seenIds.add(fileId);
           allItems.push({
-            id: fId,
-            name: fName,
-            mimeType: fName.toLowerCase().endsWith(".pdf")
+            id: fileId,
+            name: fileName,
+            mimeType: fileName.toLowerCase().endsWith(".pdf")
               ? "application/pdf"
-              : fName.toLowerCase().endsWith(".docx")
+              : fileName.toLowerCase().endsWith(".docx")
               ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
               : "application/octet-stream",
             folderPath: currentPath || undefined,
@@ -249,9 +278,9 @@ export async function fetchGoogleDriveFolderFiles(
       }
     }
 
-    // Rastrear subcarpetas detectadas
+    // Rastrear recursivamente todas las subcarpetas encontradas
     for (const subF of subFoldersToCrawl) {
-      const subPath = currentPath ? `${currentPath}/${subF.name}` : subF.name;
+      const subPath = currentPath ? `${currentPath} / ${subF.name}` : subF.name;
       const subFiles = await fetchGoogleDriveFolderFiles(
         subF.id,
         subPath,

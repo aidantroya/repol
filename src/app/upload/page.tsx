@@ -33,6 +33,7 @@ interface DriveFolderChildItem {
   storageKey: string;
   fileUrl: string;
   downloadUrl: string;
+  folderPath?: string;
   exists?: boolean;
   duplicateMessage?: string;
 }
@@ -313,36 +314,74 @@ export default function UploadPage() {
 
       if (data.isFolder && Array.isArray(data.items)) {
         // Carpeta de Google Drive: agregar todos los archivos contenidos como ítems individuales
-        const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem, idx: number) => ({
-          id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-          mode: "GDRIVE",
-          driveUrl: item.fileUrl,
-          title: item.name || `Documento ${idx + 1}`,
-          description: "",
-          subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
-          category: globalCategory,
-          subcategory: globalSubcategory,
-          customDescription: "",
-          periodYear: new Date().getFullYear().toString(),
-          periodTerm: "1PAO",
-          fileHash: item.fileHash,
-          isHashing: false,
-          duplicateCheck: item.exists
-            ? { exists: true, message: item.duplicateMessage || "Documento duplicado detectado" }
-            : { exists: false },
-          driveVerifiedData: {
-            fileId: item.fileId,
+        const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem, idx: number) => {
+          const combinedPath = `${item.folderPath || ""} ${item.name}`.toLowerCase();
+          let itemCategory: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" = globalCategory;
+          let itemSubcategory = globalSubcategory;
+
+          if (combinedPath.includes("examen") || combinedPath.includes("exam")) {
+            itemCategory = "EXAMEN";
+            if (combinedPath.includes("final")) itemSubcategory = "Final";
+            else if (combinedPath.includes("mejoramiento")) itemSubcategory = "Mejoramiento";
+            else itemSubcategory = "Parcial";
+          } else if (combinedPath.includes("leccion") || combinedPath.includes("lección")) {
+            itemCategory = "LECCION";
+            if (combinedPath.includes("1") || combinedPath.includes("uno")) itemSubcategory = "Lección 1";
+            else if (combinedPath.includes("2") || combinedPath.includes("dos")) itemSubcategory = "Lección 2";
+            else if (combinedPath.includes("3") || combinedPath.includes("tres")) itemSubcategory = "Lección 3";
+            else if (combinedPath.includes("4") || combinedPath.includes("cuatro")) itemSubcategory = "Lección 4";
+            else itemSubcategory = "Lección 1";
+          } else if (combinedPath.includes("taller") || combinedPath.includes("deber") || combinedPath.includes("tarea")) {
+            itemCategory = "TALLER";
+            if (combinedPath.includes("1")) itemSubcategory = "Taller 1";
+            else if (combinedPath.includes("2")) itemSubcategory = "Taller 2";
+            else if (combinedPath.includes("3")) itemSubcategory = "Taller 3";
+            else if (combinedPath.includes("4")) itemSubcategory = "Taller 4";
+            else itemSubcategory = "Taller 1";
+          } else if (
+            combinedPath.includes("clase") ||
+            combinedPath.includes("apunte") ||
+            combinedPath.includes("diapositiva") ||
+            combinedPath.includes("guia") ||
+            combinedPath.includes("guía")
+          ) {
+            itemCategory = "CLASE";
+            if (combinedPath.includes("diapositiva")) itemSubcategory = "Diapositivas";
+            else if (combinedPath.includes("guia") || combinedPath.includes("guía")) itemSubcategory = "Guía Teórica";
+            else itemSubcategory = "Apuntes de Clase";
+          }
+
+          return {
+            id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+            mode: "GDRIVE",
+            driveUrl: item.fileUrl,
+            title: item.name || `Documento ${idx + 1}`,
+            description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
+            subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
+            category: itemCategory,
+            subcategory: itemSubcategory,
+            customDescription: "",
+            periodYear: new Date().getFullYear().toString(),
+            periodTerm: "1PAO",
             fileHash: item.fileHash,
-            fileSize: item.fileSize,
-            mimeType: item.mimeType,
-            storageKey: item.storageKey,
-            fileUrl: item.fileUrl,
-            downloadUrl: item.downloadUrl,
-          },
-          attachments: [],
-          status: "idle",
-          isExpanded: true,
-        }));
+            isHashing: false,
+            duplicateCheck: item.exists
+              ? { exists: true, message: item.duplicateMessage || "Documento duplicado detectado" }
+              : { exists: false },
+            driveVerifiedData: {
+              fileId: item.fileId,
+              fileHash: item.fileHash,
+              fileSize: item.fileSize,
+              mimeType: item.mimeType,
+              storageKey: item.storageKey,
+              fileUrl: item.fileUrl,
+              downloadUrl: item.downloadUrl,
+            },
+            attachments: [],
+            status: "idle",
+            isExpanded: true,
+          };
+        });
 
         setQueue((prev) => [...prev, ...folderItems]);
         setInputDriveUrl("");

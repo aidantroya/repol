@@ -68,6 +68,7 @@ export async function POST(req: Request) {
             storageKey: `gdrive:${file.id}`,
             fileUrl: getGoogleDrivePreviewUrl(file.id),
             downloadUrl: getGoogleDriveDownloadUrl(file.id),
+            folderPath: file.folderPath,
             exists: isDuplicate,
             duplicateMessage: existingDoc
               ? "Este archivo ya existe en el repositorio."
