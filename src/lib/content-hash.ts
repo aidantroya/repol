@@ -5,8 +5,9 @@ import JSZip from "jszip";
 
 /**
  * Normaliza un texto removiendo espacios en blanco redundantes, signos,
- * tildes y saltos de línea para que dos documentos con el mismo contenido
- * produzcan exactamente la misma cadena textual.
+ * tildes, números de página ("página 1 de 2", etc.) y saltos de línea para
+ * que dos documentos con el mismo contenido (ej. DOCX y PDF) produzcan
+ * exactamente la misma cadena textual.
  */
 export function normalizeTextForHashing(rawText: string): string {
   if (!rawText) return "";
@@ -14,6 +15,8 @@ export function normalizeTextForHashing(rawText: string): string {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Remueve acentos y diacríticos
+    .replace(/pag(?:ina)?\s*\d+\s*(?:de|\/)\s*\d+/gi, "") // Remueve encabezados/pies de página
+    .replace(/page\s*\d+\s*(?:of|\/)\s*\d+/gi, "")
     .replace(/[^\w\d]/g, "") // Remueve signos de puntuación, espacios y saltos de línea
     .trim();
 }
@@ -90,9 +93,9 @@ export async function extractPdfFingerprint(buffer: Buffer): Promise<{
 }
 
 /**
- * Calcula la huella digital semántica y multimodal (SHA-256 del contenido normalizado).
- * Si un archivo se sube en .docx y otro en .pdf pero contienen el mismo texto/examen,
- * el `contentHash` resultará IDÉNTICO.
+ * Calcula la huella digital semántica universal (SHA-256 del texto canónico normalizado).
+ * Si un archivo se sube en .docx y otro en .pdf pero contienen las mismas preguntas o texto,
+ * el `contentHash` resultará 100% IDÉNTICO.
  */
 export async function computeSemanticContentHash(
   buffer: Buffer,
@@ -129,20 +132,21 @@ export async function computeSemanticContentHash(
     textLength = fp.rawTextLength;
   }
 
-  // Si contiene suficiente texto normalizado (más de 25 caracteres clave)
-  if (normalizedText.length >= 25) {
-    const payload = `text:${normalizedText}${imageHashes.length > 0 ? `|img:${imageHashes.join(",")}` : ""}`;
+  // 1. Si contiene texto normalizado suficiente (más de 15 caracteres)
+  // El hash textual canónico es universal para DOCX, PDF, etc.
+  if (normalizedText.length >= 15) {
+    const payload = `text:${normalizedText}`;
     const contentHash = "sem_" + crypto.createHash("sha256").update(payload).digest("hex");
     return { contentHash, rawSha256, isDocx, isPdf, hasText: true, textLength };
   }
 
-  // Si es un documento basado en imágenes internas identificadas
+  // 2. Si no contiene texto pero contiene imágenes internas
   if (imageHashes.length > 0) {
     const payload = `img:${imageHashes.join(",")}`;
     const contentHash = "img_" + crypto.createHash("sha256").update(payload).digest("hex");
     return { contentHash, rawSha256, isDocx, isPdf, hasText: false, textLength };
   }
 
-  // Fallback a hash binario si no se pudo extraer texto estructurado
+  // 3. Fallback a hash binario puro
   return { contentHash: rawSha256, rawSha256, isDocx, isPdf, hasText: false, textLength };
 }

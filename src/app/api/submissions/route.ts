@@ -62,14 +62,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Faltan campos obligatorios" }, { status: 400 });
     }
 
-    // Doble verificación del hash SHA-256
-    const existingDoc = await prisma.document.findUnique({
-      where: { fileHash },
+    // 1. Doble verificación contra documentos oficiales ya publicados
+    const existingDoc = await prisma.document.findFirst({
+      where: {
+        OR: [
+          { fileHash },
+          {
+            subjectId,
+            periodYear: parseInt(String(periodYear), 10) || new Date().getFullYear(),
+            periodTerm: periodTerm || "1PAO",
+            category,
+            subcategory,
+            title: { equals: String(title).trim(), mode: "insensitive" },
+          },
+        ],
+      },
+      include: { subject: true },
     });
 
     if (existingDoc) {
       return NextResponse.json(
-        { error: "Este archivo ya existe en el repositorio público." },
+        { error: `Este documento ya está publicado en el repositorio oficial ("${existingDoc.title}").` },
+        { status: 409 }
+      );
+    }
+
+    // 2. Doble verificación contra solicitudes pendientes en moderación
+    const existingSub = await prisma.submission.findFirst({
+      where: {
+        status: "PENDING",
+        OR: [
+          { fileHash },
+          {
+            subjectId,
+            periodYear: parseInt(String(periodYear), 10) || new Date().getFullYear(),
+            periodTerm: periodTerm || "1PAO",
+            category,
+            subcategory,
+            title: { equals: String(title).trim(), mode: "insensitive" },
+          },
+        ],
+      },
+    });
+
+    if (existingSub) {
+      return NextResponse.json(
+        { error: `Ya existe una solicitud pendiente de revisión para este mismo documento ("${existingSub.title}").` },
         { status: 409 }
       );
     }

@@ -237,37 +237,59 @@ export default function UploadPage() {
 
           if (res.ok) {
             const dupRes = await res.json();
-            setQueue((prev) =>
-              prev.map((q) =>
+            const calculatedHash = dupRes.fileHash || item.fileHash;
+
+            setQueue((prev) => {
+              const isDuplicateInQueue = prev.some(
+                (q) => q.id !== item.id && q.fileHash && q.fileHash === calculatedHash
+              );
+
+              return prev.map((q) =>
                 q.id === item.id
                   ? {
                       ...q,
-                      fileHash: dupRes.fileHash || q.fileHash,
+                      fileHash: calculatedHash,
                       isHashing: false,
-                      duplicateCheck: dupRes.exists
+                      duplicateCheck: isDuplicateInQueue
+                        ? {
+                            exists: true,
+                            type: "IN_QUEUE_DUPLICATE",
+                            message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
+                          }
+                        : dupRes.exists
                         ? { exists: true, type: dupRes.type, message: dupRes.message }
                         : { exists: false },
                     }
                   : q
-              )
-            );
+              );
+            });
           } else {
             const hash = await calculateSHA256(item.file);
             const dupRes = await checkDuplicate(hash, item.subjectId, item.category, item.subcategory);
-            setQueue((prev) =>
-              prev.map((q) =>
+            setQueue((prev) => {
+              const isDuplicateInQueue = prev.some(
+                (q) => q.id !== item.id && q.fileHash && q.fileHash === hash
+              );
+
+              return prev.map((q) =>
                 q.id === item.id
                   ? {
                       ...q,
                       fileHash: hash,
                       isHashing: false,
-                      duplicateCheck: dupRes.exists
+                      duplicateCheck: isDuplicateInQueue
+                        ? {
+                            exists: true,
+                            type: "IN_QUEUE_DUPLICATE",
+                            message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
+                          }
+                        : dupRes.exists
                         ? { exists: true, type: dupRes.type, message: dupRes.message }
                         : { exists: false },
                     }
                   : q
-              )
-            );
+              );
+            });
           }
         } catch (err) {
           console.error("Error al hashear archivo:", err);
