@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X, Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 
@@ -45,6 +46,11 @@ interface PdfViewerModalProps {
 
 export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: PdfViewerModalProps) {
   const [showAttachments, setShowAttachments] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -60,25 +66,25 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen || !doc) return null;
+  if (!isOpen || !doc || !mounted) return null;
 
   const hasAttachments = Boolean(doc.attachments && doc.attachments.length > 0);
 
-  return (
-    <div className="fixed inset-0 z-[100] flex h-screen w-screen flex-col bg-zinc-950 animate-in fade-in duration-150 select-none">
+  const modalContent = (
+    <div className="fixed inset-0 z-[99999] flex h-screen w-screen flex-col bg-zinc-950 animate-in fade-in duration-150 select-none">
       
       {/* Barra superior de controles a pantalla completa */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 sm:px-6 z-10">
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 sm:px-6 z-20">
         <div className="flex items-center gap-3 truncate mr-4">
           
-          {/* Botón de Volver */}
+          {/* Botón de Volver al Catálogo */}
           <button
             onClick={onClose}
-            className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition shrink-0"
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600 px-3.5 py-1.5 text-xs font-bold text-white transition shrink-0 shadow-sm active:scale-95"
             title="Volver al catálogo (Esc)"
           >
             <ArrowLeft className="h-4 w-4 text-blue-400" />
-            <span className="hidden sm:inline">Volver</span>
+            <span>Volver</span>
           </button>
 
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
@@ -165,7 +171,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
 
       {/* Panel desplegable de archivos complementarios / anexos */}
       {hasAttachments && showAttachments && (
-        <div className="border-b border-zinc-800 bg-zinc-900/95 p-3 sm:px-6 animate-in slide-in-from-top-2 duration-150 z-10">
+        <div className="border-b border-zinc-800 bg-zinc-900/95 p-3 sm:px-6 animate-in slide-in-from-top-2 duration-150 z-20">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
               <Paperclip className="h-3.5 w-3.5" />
@@ -220,7 +226,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
       </div>
 
       {/* Barra inferior compacta con metadatos del documento */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-t border-zinc-800 bg-zinc-900/90 px-4 sm:px-6 text-xs text-zinc-400 z-10">
+      <div className="flex h-9 shrink-0 items-center justify-between border-t border-zinc-800 bg-zinc-900/90 px-4 sm:px-6 text-xs text-zinc-400 z-20">
         <div className="flex items-center gap-2 truncate">
           <span className="font-semibold text-zinc-200">{doc.subject.name}</span>
           <span className="text-zinc-500">({doc.subject.code})</span>
@@ -239,4 +245,6 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
 
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
