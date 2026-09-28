@@ -19,7 +19,9 @@ import {
   Copy,
   ChevronDown,
   ChevronUp,
-  FileCode
+  FileCode,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
@@ -101,9 +103,13 @@ export default function UploadPage() {
   const [globalSubjectId, setGlobalSubjectId] = useState("");
   const [globalCategory, setGlobalCategory] = useState<"CLASE" | "LECCION" | "TALLER" | "EXAMEN">("EXAMEN");
   const [globalSubcategory, setGlobalSubcategory] = useState("Parcial");
+  const [globalYear, setGlobalYear] = useState(new Date().getFullYear().toString());
+  const [globalPeriodTerm, setGlobalPeriodTerm] = useState("1PAO");
 
-  // Cola de documentos a subir
+  // Cola de documentos a subir y selección para lote
   const [queue, setQueue] = useState<UploadQueueItem[]>([]);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [appliedNotification, setAppliedNotification] = useState<string | null>(null);
   const [isSubmittingBatch, setIsSubmittingBatch] = useState(false);
 
   // Input temporal de Drive
@@ -205,8 +211,8 @@ export default function UploadPage() {
         category: globalCategory,
         subcategory: globalSubcategory,
         customDescription: "",
-        periodYear: new Date().getFullYear().toString(),
-        periodTerm: "1PAO",
+        periodYear: globalYear || new Date().getFullYear().toString(),
+        periodTerm: globalPeriodTerm || "1PAO",
         fileHash: "",
         isHashing: true,
         duplicateCheck: null,
@@ -426,8 +432,8 @@ export default function UploadPage() {
         category: globalCategory,
         subcategory: globalSubcategory,
         customDescription: "",
-        periodYear: new Date().getFullYear().toString(),
-        periodTerm: "1PAO",
+        periodYear: globalYear || new Date().getFullYear().toString(),
+        periodTerm: globalPeriodTerm || "1PAO",
         fileHash: data.fileHash,
         isHashing: false,
         duplicateCheck: data.exists
@@ -522,18 +528,56 @@ export default function UploadPage() {
   // Eliminar un ítem de la cola
   const handleRemoveItem = (id: string) => {
     setQueue((prev) => prev.filter((item) => item.id !== id));
+    setSelectedItemIds((prev) => prev.filter((i) => i !== id));
   };
 
-  // Aplicar Materia, Categoría y Subcategoría global a todos los ítems de la lista
-  const handleApplyGlobalToAll = () => {
-    setQueue((prev) =>
-      prev.map((item) => ({
-        ...item,
-        subjectId: globalSubjectId,
-        category: globalCategory,
-        subcategory: globalSubcategory,
-      }))
+  // Alternar selección de un ítem individual
+  const toggleSelectItem = (id: string) => {
+    setSelectedItemIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
     );
+  };
+
+  // Seleccionar o deseleccionar todos los ítems de la cola
+  const toggleSelectAll = () => {
+    if (selectedItemIds.length === queue.length && queue.length > 0) {
+      setSelectedItemIds([]);
+    } else {
+      setSelectedItemIds(queue.map((item) => item.id));
+    }
+  };
+
+  // Aplicar Materia, Categoría, Subcategoría, Año y Periodo global
+  const handleApplyGlobal = (applyToAll: boolean) => {
+    if (queue.length === 0) return;
+
+    const targetIds = applyToAll
+      ? new Set(queue.map((item) => item.id))
+      : new Set(selectedItemIds);
+
+    if (targetIds.size === 0) return;
+
+    setQueue((prev) =>
+      prev.map((item) => {
+        if (!targetIds.has(item.id)) return item;
+        return {
+          ...item,
+          ...(globalSubjectId ? { subjectId: globalSubjectId } : {}),
+          category: globalCategory,
+          subcategory: globalSubcategory,
+          ...(globalYear ? { periodYear: globalYear } : {}),
+          periodTerm: globalPeriodTerm,
+        };
+      })
+    );
+
+    const count = targetIds.size;
+    setAppliedNotification(
+      `Se aplicaron los ajustes por defecto a ${count} ${count === 1 ? "documento" : "documentos"}.`
+    );
+    setTimeout(() => {
+      setAppliedNotification(null);
+    }, 3500);
   };
 
   // Subir un archivo a Cloudflare R2
@@ -697,7 +741,7 @@ export default function UploadPage() {
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Inicia sesión para contribuir</h2>
           <p className="text-zinc-400 text-sm mb-6 max-w-md mx-auto">
-            Para mantener la calidad y moderación del repositorio, debes identificarte con tu cuenta institucional o Google.
+            Para mantener la calidad y moderación del repositorio, debes identificarte con tu correo institucional de la ESPOL (@espol.edu.ec).
           </p>
           <button
             onClick={() => router.push("/auth/signin")}
@@ -729,29 +773,48 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Selector Rápido Global (Para aplicar a todo el lote) */}
+      {/* Selector Rápido Global (Para aplicar a documentos seleccionados o a todo el lote) */}
       <div className="relative z-30 mb-8 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5 text-blue-400" />
             <h3 className="text-sm font-bold text-white">Configuración Rápida para Lotes de Documentos</h3>
           </div>
+          {appliedNotification && (
+            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400 animate-fade-in">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {appliedNotification}
+            </span>
+          )}
           {queue.length > 0 && (
-            <button
-              onClick={handleApplyGlobalToAll}
-              type="button"
-              className="flex items-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3 py-1.5 text-xs font-semibold text-blue-400 transition"
-              title="Aplica esta materia, tipo y subcategoría a todos los archivos de tu cola actual"
-            >
-              <Copy className="h-3.5 w-3.5" />
-              <span>Aplicar a todos los ({queue.length}) documentos</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => handleApplyGlobal(false)}
+                disabled={selectedItemIds.length === 0}
+                type="button"
+                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed border border-blue-500/30 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm"
+                title="Aplica esta configuración solo a los documentos que has marcado con el checkbox"
+              >
+                <CheckSquare className="h-3.5 w-3.5" />
+                <span>Aplicar a seleccionados ({selectedItemIds.length})</span>
+              </button>
+
+              <button
+                onClick={() => handleApplyGlobal(true)}
+                type="button"
+                className="flex items-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3.5 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition"
+                title="Aplica esta materia, tipo, subcategoría, año y término a todos los archivos en la cola"
+              >
+                <Copy className="h-3.5 w-3.5" />
+                <span>Aplicar a todos ({queue.length})</span>
+              </button>
+            </div>
           )}
         </div>
 
-        <div className="flex flex-wrap sm:flex-nowrap items-end gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end">
           {/* Materia Global */}
-          <div className="flex-1 min-w-[240px]">
+          <div className="sm:col-span-2 md:col-span-4">
             <label className="block text-xs font-medium text-zinc-400 mb-1">Materia Global</label>
             <SearchableSelect
               options={allSubjectOptions}
@@ -763,7 +826,7 @@ export default function UploadPage() {
           </div>
 
           {/* Categoría / Tipo Global */}
-          <div className="w-full sm:w-44 shrink-0">
+          <div className="sm:col-span-1 md:col-span-2">
             <label className="block text-xs font-medium text-zinc-400 mb-1">Tipo / Categoría</label>
             <select
               value={globalCategory}
@@ -783,7 +846,7 @@ export default function UploadPage() {
           </div>
 
           {/* Subcategoría Global */}
-          <div className="w-full sm:w-44 shrink-0">
+          <div className="sm:col-span-1 md:col-span-2">
             <label className="block text-xs font-medium text-zinc-400 mb-1">Subcategoría</label>
             <select
               value={globalSubcategory}
@@ -795,6 +858,32 @@ export default function UploadPage() {
                   {opt}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Año Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <label className="block text-xs font-medium text-zinc-400 mb-1">Año Evaluado</label>
+            <input
+              type="text"
+              placeholder="2026"
+              value={globalYear}
+              onChange={(e) => setGlobalYear(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {/* Periodo Académico Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <label className="block text-xs font-medium text-zinc-400 mb-1">Periodo (PAO/PAE)</label>
+            <select
+              value={globalPeriodTerm}
+              onChange={(e) => setGlobalPeriodTerm(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            >
+              <option value="1PAO">1PAO (1er Término)</option>
+              <option value="2PAO">2PAO (2do Término)</option>
+              <option value="PAE">PAE (Académico Especial)</option>
             </select>
           </div>
         </div>
@@ -886,16 +975,36 @@ export default function UploadPage() {
       {queue.length > 0 && (
         <div className="mb-10">
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <h3 className="text-lg font-bold text-white">Documentos en Cola ({queue.length})</h3>
               <span className="rounded-full bg-blue-500/10 px-3 py-0.5 text-xs font-semibold text-blue-400 border border-blue-500/20">
                 {queue.filter((q) => q.status === "success").length} de {queue.length} completados
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setQueue([])}
+                onClick={toggleSelectAll}
+                type="button"
+                className="flex items-center gap-1.5 rounded-xl bg-zinc-800/80 hover:bg-zinc-800 border border-zinc-700/60 px-3 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition"
+              >
+                {selectedItemIds.length > 0 && selectedItemIds.length === queue.length ? (
+                  <CheckSquare className="h-4 w-4 text-blue-400" />
+                ) : (
+                  <Square className="h-4 w-4 text-zinc-400" />
+                )}
+                <span>
+                  {selectedItemIds.length === queue.length
+                    ? "Deseleccionar todos"
+                    : `Seleccionar todos (${selectedItemIds.length}/${queue.length})`}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setQueue([]);
+                  setSelectedItemIds([]);
+                }}
                 type="button"
                 className="text-xs font-medium text-zinc-400 hover:text-rose-400 px-3 py-1.5 transition"
               >
@@ -906,6 +1015,7 @@ export default function UploadPage() {
 
           <div className="space-y-4">
             {queue.map((item, index) => {
+              const isSelected = selectedItemIds.includes(item.id);
               return (
                 <div
                   key={item.id}
@@ -914,6 +1024,8 @@ export default function UploadPage() {
                       ? "border-emerald-500/30 bg-emerald-950/10"
                       : item.status === "error"
                       ? "border-rose-500/40 bg-rose-950/10"
+                      : isSelected
+                      ? "border-blue-500/60 bg-blue-950/10"
                       : "border-zinc-800 bg-zinc-900/60"
                   } p-5`}
                 >
@@ -921,9 +1033,23 @@ export default function UploadPage() {
                   {/* Fila Superior: Resumen del Archivo y Controles de Colapso */}
                   <div className="flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3 truncate">
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-xs font-bold text-zinc-300">
-                        {index + 1}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleSelectItem(item.id)}
+                        className={`flex h-8 items-center gap-1.5 rounded-lg border px-2 text-xs font-bold transition-all ${
+                          isSelected
+                            ? "border-blue-500 bg-blue-500/20 text-blue-400 shadow-sm shadow-blue-500/10"
+                            : "border-zinc-700/70 bg-zinc-800/70 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                        }`}
+                        title={isSelected ? "Deseleccionar para ajustes por lote" : "Seleccionar para aplicar ajustes por lote"}
+                      >
+                        {isSelected ? (
+                          <CheckSquare className="h-4 w-4 text-blue-400" />
+                        ) : (
+                          <Square className="h-4 w-4 text-zinc-500" />
+                        )}
+                        <span>#{index + 1}</span>
+                      </button>
                       <div className="truncate">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-white truncate max-w-sm sm:max-w-md">
