@@ -121,6 +121,40 @@ export interface DriveItem {
   isFolder?: boolean;
 }
 
+function isDriveFolder(entryName: string, entryContent: string): boolean {
+  const lowerName = entryName.toLowerCase().trim();
+
+  // 1. Si tiene extensión de archivo conocida, NUNCA es carpeta
+  const fileExtensions = [
+    ".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+    ".zip", ".rar", ".7z", ".txt", ".csv", ".png", ".jpg", ".jpeg",
+    ".mp4", ".ipynb", ".py", ".c", ".cpp", ".java", ".sql", ".epub"
+  ];
+  if (fileExtensions.some((ext) => lowerName.endsWith(ext))) {
+    return false;
+  }
+
+  // 2. Si contiene enlace explícito a visualizador de archivo de Drive
+  if (entryContent.includes("/file/d/") || entryContent.includes("flipview-icon-file") || entryContent.includes("icon-file")) {
+    return false;
+  }
+
+  // 3. Si contiene iconos de carpeta o enlaces específicos a carpetas
+  if (
+    entryContent.includes("flipview-icon-folder") ||
+    entryContent.includes("folder-icon") ||
+    entryContent.includes("icon-folder") ||
+    entryContent.includes("drive-icon-folder") ||
+    entryContent.includes("/drive/folders/") ||
+    entryContent.includes("data-target=\"folder\"")
+  ) {
+    return true;
+  }
+
+  // 4. Si no tiene extensión y su nombre parece carpeta (ej. "CLASES", "EXAMENES", "Unidad 1")
+  return !lowerName.includes(".");
+}
+
 /**
  * Obtiene recursivamente todos los archivos dentro de una carpeta y sus subcarpetas en Google Drive
  */
@@ -150,7 +184,7 @@ export async function fetchGoogleDriveFolderFiles(
           for (const f of data.files) {
             const isFolder = f.mimeType === "application/vnd.google-apps.folder";
             if (isFolder) {
-              const subPath = currentPath ? `${currentPath}/${f.name}` : f.name;
+              const subPath = currentPath ? `${currentPath} / ${f.name}` : f.name;
               const subFiles = await fetchGoogleDriveFolderFiles(
                 f.id,
                 subPath,
@@ -214,15 +248,8 @@ export async function fetchGoogleDriveFolderFiles(
         entryContent.match(/<a[^>]*>([^<]+)<\/a>/i);
       const entryName = titleMatch ? titleMatch[1].trim() : `Elemento ${entryId}`;
 
-      // Determinar si es una CARPETA o un ARCHIVO
-      const isFolder =
-        entryContent.includes("flipview-icon-folder") ||
-        entryContent.includes("folder-icon") ||
-        entryContent.includes("icon-folder") ||
-        entryContent.includes("drive-icon-folder") ||
-        entryContent.includes("embeddedfolderview?id=") ||
-        entryContent.includes("/folders/") ||
-        entryContent.includes("flipview-folder");
+      // Determinar si es una CARPETA o un ARCHIVO con precisión
+      const isFolder = isDriveFolder(entryName, entryContent);
 
       if (isFolder) {
         subFoldersToCrawl.push({ id: entryId, name: entryName });
