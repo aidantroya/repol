@@ -52,11 +52,19 @@ function SignInContent() {
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-rose-400" />
               <div>
-                <p className="font-bold text-rose-200">Acceso restringido</p>
+                <p className="font-bold text-rose-200">
+                  {error === "Configuration"
+                    ? "Configuración de Microsoft pendiente"
+                    : error === "AccessDenied"
+                    ? "Acceso no autorizado"
+                    : "Aviso de inicio de sesión"}
+                </p>
                 <p className="mt-1 leading-relaxed text-rose-300/90">
-                  {error === "AccessDenied"
+                  {error === "Configuration"
+                    ? "Aún no se han colocado las claves AZURE_AD_CLIENT_ID y AZURE_AD_CLIENT_SECRET en las variables de entorno de Vercel/archivo .env."
+                    : error === "AccessDenied"
                     ? "Debes seleccionar tu cuenta institucional politécnica (@espol.edu.ec) para acceder."
-                    : "No se pudo completar el inicio de sesión. Por favor, inténtalo nuevamente."}
+                    : "No se pudo completar el inicio de sesión con Microsoft. Por favor, inténtalo nuevamente."}
                 </p>
               </div>
             </div>
