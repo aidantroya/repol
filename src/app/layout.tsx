@@ -23,10 +23,10 @@ export default function RootLayout({
           <footer className="border-t border-zinc-900 bg-zinc-950 py-8 text-xs text-zinc-500">
             <div className="mx-auto max-w-7xl px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex flex-col sm:flex-row items-center gap-2 sm:gap-4 text-center sm:text-left">
-                <p>© {new Date().getFullYear()} RePol - Repositorio Académico Colaborativo</p>
+                <p>© {new Date().getFullYear()} RePol - Repositorio Académico</p>
                 <span className="hidden sm:inline text-zinc-700">•</span>
-                <a href="/legal" className="text-zinc-400 hover:text-blue-400 underline-offset-4 hover:underline transition">
-                  Aviso Legal & Takedown
+                <a href="/informacion-adicional" className="text-zinc-400 hover:text-blue-400 underline-offset-4 hover:underline transition">
+                  Información adicional
                 </a>
               </div>
               <p className="flex items-center gap-1.5 text-zinc-400 text-center sm:text-right">

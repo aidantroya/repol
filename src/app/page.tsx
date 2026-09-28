@@ -12,9 +12,7 @@ import {
   X,
   Filter,
   FolderArchive,
-  Download,
-  Scale,
-  ShieldCheck
+  Download
 } from "lucide-react";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
@@ -386,84 +384,6 @@ export default function HomePage() {
             ))}
           </div>
         )}
-      </section>
-
-      {/* Sección de Información Adicional: Aviso Legal, Propiedad Intelectual y Política de Retiro */}
-      <section id="aviso-legal" className="relative overflow-hidden rounded-3xl border border-zinc-800/80 bg-zinc-900/40 p-6 sm:p-10 backdrop-blur-sm space-y-8">
-        <div className="space-y-3 max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-3.5 py-1 text-xs font-semibold text-blue-400">
-            <Scale className="h-3.5 w-3.5" />
-            <span>Marco Legal & Transparencia</span>
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-sans">
-            Aviso Legal, Propiedad Intelectual y Política de Retiro
-          </h2>
-          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-4 text-xs sm:text-sm text-zinc-300 leading-relaxed">
-            <span className="font-bold text-blue-400">Declaración de Principios de DocuPol:</span> DocuPol es un índice y directorio colaborativo sin fines de lucro, desarrollado de forma independiente por y para estudiantes, destinado exclusivamente a facilitar el estudio formativo, la autoevaluación y la preparación académica.
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {/* 01 Independencia Institucional */}
-          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/60 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-black text-blue-500/40">01</span>
-              <ShieldCheck className="h-5 w-5 text-blue-400" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Independencia Institucional</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              DocuPol es un proyecto tecnológico independiente. No mantiene ningún tipo de relación jurídica, convenio oficial, respaldo, patrocinio, afiliación ni financiamiento con entidades universitarias oficiales, facultades, dependencias administrativas ni directivos. Las siglas, nombres de facultades o asignaturas se emplean estrictamente con fines referenciales y de orientación académica.
-            </p>
-          </div>
-
-          {/* 02 Naturaleza de Directorio de Enlaces Públicos */}
-          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/60 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-black text-blue-500/40">02</span>
-              <FolderArchive className="h-5 w-5 text-indigo-400" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Naturaleza de Directorio de Enlaces Públicos</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              DocuPol opera como un motor de búsqueda y agregador de metadatos académicos. La plataforma no aloja de forma nativa archivos con derechos de autor reservados en servidores propios cerrados; recopila y clasifica enlaces previamente difundidos en plataformas públicas de almacenamiento e intercambio en la nube (tales como Google Drive, Microsoft OneDrive, Dropbox u otros servicios).
-            </p>
-          </div>
-
-          {/* 03 Política Expedita de Retiro (Takedown) */}
-          <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 space-y-3 md:col-span-2 lg:col-span-1">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-black text-rose-500/40">03</span>
-              <Scale className="h-5 w-5 text-rose-400" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Política Expedita de Retiro (Takedown)</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Respetamos los derechos morales y patrimoniales de autores y docentes. Si usted es docente, autor legítimo o titular de derechos sobre una evaluación o guía indexada y desea su retiro inmediato, puede solicitarlo mediante el botón de reporte disponible en la ficha de cada documento o escribir directamente indicando la materia y la URL. El enlace será desindexado permanentemente en un plazo máximo de 24 horas laborables.
-            </p>
-          </div>
-
-          {/* 04 Uso Ético y Responsabilidad del Usuario */}
-          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/60 p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-black text-amber-500/40">04</span>
-              <BookOpen className="h-5 w-5 text-amber-400" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Uso Ético y Responsabilidad del Usuario</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              El material indexado tiene como única finalidad la preparación académica, la autoevaluación y la consulta de antecedentes bibliográficos de exámenes pasados. Se prohíbe taxativamente su uso fraudulento durante evaluaciones o exámenes activos. Cada usuario asume la total responsabilidad ética, académica y disciplinaria derivada del uso o consulta que decida darle a la información indexada.
-            </p>
-          </div>
-
-          {/* 05 Privacidad de Datos y Ausencia de Fines de Lucro */}
-          <div className="rounded-2xl border border-zinc-800/90 bg-zinc-950/60 p-5 space-y-3 md:col-span-2">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-2xl font-black text-emerald-500/40">05</span>
-              <ShieldCheck className="h-5 w-5 text-emerald-400" />
-            </div>
-            <h3 className="text-sm font-bold text-white">Privacidad de Datos y Ausencia de Fines de Lucro</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              DocuPol es un servicio 100% libre y gratuito. No comercializamos datos personales ni insertamos publicidad invasiva. La autenticación se utiliza exclusivamente para la sincronización de favoritos y la atribución comunitaria de aportes en moderación.
-            </p>
-          </div>
-        </div>
       </section>
 
     </div>
