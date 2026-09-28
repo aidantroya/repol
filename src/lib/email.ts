@@ -6,12 +6,14 @@ interface SendOtpEmailParams {
 }
 
 export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ success: boolean; message?: string; devOtp?: string }> {
+  const brevoApiKey = process.env.BREVO_API_KEY;
   const resendApiKey = process.env.RESEND_API_KEY;
   const smtpHost = process.env.SMTP_HOST;
   const smtpPort = parseInt(process.env.SMTP_PORT || "587", 10);
   const smtpUser = process.env.SMTP_USER;
   const smtpPass = process.env.SMTP_PASS;
-  const fromEmail = process.env.SMTP_FROM || process.env.RESEND_FROM || "RePol ESPOL <onboarding@resend.dev>";
+  const fromEmail = process.env.SMTP_FROM || process.env.BREVO_FROM || process.env.RESEND_FROM || "no-reply@repol.espol.edu.ec";
+  const senderName = "RePol ESPOL";
 
   const subject = `Código de verificación RePol: ${otp}`;
   const htmlContent = `
@@ -53,7 +55,39 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
     </html>
   `;
 
-  // 1. MÉTODO RECOMENDADO: Resend API (HTTP REST, 100% compatible con Vercel Serverless y entrega garantizada a Outlook/ESPOL)
+  // 1. MÉTODO BREVO (Sendinblue) API - Rápido, 300 correos diarios gratis y entrega directa garantizada a Outlook ESPOL
+  if (brevoApiKey) {
+    try {
+      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": brevoApiKey,
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          sender: { name: senderName, email: fromEmail.includes("@") ? fromEmail : "no-reply@repol.espol.edu.ec" },
+          to: [{ email: to }],
+          subject: subject,
+          htmlContent: htmlContent,
+          textContent: `Tu código de verificación de RePol es: ${otp}. Válido por 10 minutos.`,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        console.error("Brevo API error:", resData);
+        return { success: false, message: resData.message || "Error en el servicio de correo Brevo" };
+      }
+
+      console.log(`[RePol] Correo enviado exitosamente vía Brevo a ${to} (MessageId: ${resData.messageId})`);
+      return { success: true };
+    } catch (error) {
+      console.error("Error conectando con Brevo API:", error);
+    }
+  }
+
+  // 2. MÉTODO RESEND API
   if (resendApiKey) {
     try {
       const res = await fetch("https://api.resend.com/emails", {
@@ -63,7 +97,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: fromEmail,
+          from: `${senderName} <${fromEmail}>`,
           to: [to],
           subject: subject,
           html: htmlContent,
@@ -84,7 +118,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
     }
   }
 
-  // 2. MÉTODO SMTP (Nodemailer: Gmail, Brevo, SendGrid, etc.)
+  // 3. MÉTODO SMTP (Nodemailer: smtp-relay.brevo.com, Gmail, etc.)
   if (smtpHost && smtpUser && smtpPass) {
     try {
       const transporter = nodemailer.createTransport({
@@ -98,7 +132,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
       });
 
       await transporter.sendMail({
-        from: fromEmail,
+        from: `"${senderName}" <${fromEmail}>`,
         to,
         subject,
         text: `Tu código de verificación de RePol es: ${otp}. Es válido durante 10 minutos.`,
@@ -113,7 +147,7 @@ export async function sendOtpEmail({ to, otp }: SendOtpEmailParams): Promise<{ s
     }
   }
 
-  // 3. MODO DESARROLLO / PRUEBAS LOCALES (Si aún no se configuran variables de correo en .env)
+  // 4. MODO DESARROLLO / PRUEBAS LOCALES (Si aún no se han configurado variables de correo)
   console.log(`\n======================================================`);
   console.log(`[RePol OTP] Correo institucional: ${to}`);
   console.log(`[RePol OTP] Código de verificación: ${otp}`);
