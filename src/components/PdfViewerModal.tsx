@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { X, Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode } from "lucide-react";
+import { X, Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
 
 export interface AttachmentItem {
@@ -70,6 +70,17 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
       {/* Barra superior de controles a pantalla completa */}
       <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 sm:px-6 z-10">
         <div className="flex items-center gap-3 truncate mr-4">
+          
+          {/* Botón de Volver */}
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 hover:border-zinc-600 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition shrink-0"
+            title="Volver al catálogo (Esc)"
+          >
+            <ArrowLeft className="h-4 w-4 text-blue-400" />
+            <span className="hidden sm:inline">Volver</span>
+          </button>
+
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
             <FileText className="h-4 w-4" />
           </div>

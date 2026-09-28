@@ -9,6 +9,7 @@ import {
   User as UserIcon, 
   LogOut, 
   Award,
+  Sparkles,
   LogIn
 } from "lucide-react";
 

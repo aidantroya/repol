@@ -57,7 +57,6 @@ export default function ProfilePage() {
 
   const user = session?.user;
   const contributions = user?.approvedContributions || 0;
-  const isAdmin = user?.role === "ADMIN" || user?.role === "MODERATOR";
   const progressPercent = Math.min(100, Math.round((contributions / 10) * 100));
 
   useEffect(() => {

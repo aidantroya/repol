@@ -198,3 +198,30 @@ export async function fetchGoogleDriveFolderFiles(folderId: string): Promise<Dri
     throw new Error("No se pudo leer el contenido de la carpeta. Asegúrate de que el enlace de la carpeta esté en modo público ('Cualquier persona con el enlace puede ver').");
   }
 }
+
+/**
+ * Descarga el contenido binario de un archivo público de Google Drive como Buffer
+ */
+export async function downloadDriveFileBuffer(fileId: string): Promise<Buffer | null> {
+  const downloadUrls = [
+    `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
+    `https://drive.google.com/uc?export=download&id=${fileId}`,
+  ];
+
+  for (const url of downloadUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol/1.0",
+        },
+      });
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        return Buffer.from(arrayBuf);
+      }
+    } catch (e) {
+      console.warn(`Error downloading drive file ${fileId} from ${url}:`, e);
+    }
+  }
+  return null;
+}

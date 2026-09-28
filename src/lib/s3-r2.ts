@@ -58,3 +58,22 @@ export async function getPresignedDownloadUrl(
     expiresIn: expiresInSeconds,
   });
 }
+
+/**
+ * Descarga el contenido binario de un archivo de R2 como Buffer
+ */
+export async function downloadR2Buffer(key: string): Promise<Buffer | null> {
+  try {
+    const command = new GetObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    });
+    const response = await s3Client.send(command);
+    if (!response.Body) return null;
+    const byteArray = await response.Body.transformToByteArray();
+    return Buffer.from(byteArray);
+  } catch (error) {
+    console.warn(`Error downloading R2 file ${key}:`, error);
+    return null;
+  }
+}

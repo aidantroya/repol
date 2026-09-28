@@ -10,7 +10,9 @@ import {
   ChevronRight,
   BookOpen,
   X,
-  Filter
+  Filter,
+  FolderArchive,
+  Download
 } from "lucide-react";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
@@ -302,6 +304,35 @@ export default function HomePage() {
 
       {/* Resultados de Documentos */}
       <section className="relative z-10 space-y-6">
+        
+        {/* Descarga de Materia Completa en ZIP si hay una materia seleccionada */}
+        {selectedSubject && (
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-gradient-to-r from-blue-950/40 via-blue-900/20 to-zinc-900/60 border border-blue-500/30 p-4 sm:p-5 rounded-2xl shadow-lg">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                <FolderArchive className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">¿Deseas descargar todo el material de esta materia?</h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Descarga un archivo ZIP organizado por carpetas con todos los exámenes, lecciones, talleres y clases.
+                </p>
+              </div>
+            </div>
+
+            <a
+              href={`/api/subjects/download-zip?slug=${encodeURIComponent(selectedSubject)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0"
+              title="Descargar todos los documentos de esta materia en formato .zip"
+            >
+              <Download className="h-4 w-4" />
+              <span>Descargar ZIP Completo</span>
+            </a>
+          </div>
+        )}
+
         <div className="flex items-center justify-between border-b border-zinc-800 pb-4">
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-white">Documentos Disponibles</h2>
