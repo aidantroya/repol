@@ -59,27 +59,27 @@ function detectCategoryAndSubcategory(
 ): { category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN"; subcategory: string; detected: boolean } {
   const norm = normalizeString(combinedText);
 
-  // 1. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / 3P
+  // 1. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / Evaluación Tercera / 3P
   if (
-    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|3ra\s+evaluacion|3ra\s+eval|3p|3er\s+parcial|tercer\s+parcial)\b/.test(
+    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|evaluacion\s+tercera|evaluacion\s*#?\s*3|evaluacion\s+iii|eval\s*#?\s*3|eval\s+iii|3ra\s+evaluacion|3era\s+evaluacion|3ra\s+eval|3p|3er\s+parcial|tercer\s+parcial|evaluacion\s+de\s+mejoramiento|evaluacion\s+de\s+gracia)\b/.test(
       norm
     )
   ) {
     return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
   }
 
-  // 2. EXAMEN - Final / 2da Evaluación / 2P
+  // 2. EXAMEN - Final / 2da Evaluación / Evaluación Segunda / 2P
   if (
-    /\b(?:final|examen\s+final|segunda\s+evaluacion|2da\s+evaluacion|2da\s+eval|2p|2do\s+parcial|segundo\s+parcial)\b/.test(
+    /\b(?:final|examen\s+final|evaluacion\s+final|segunda\s+evaluacion|evaluacion\s+segunda|evaluacion\s*#?\s*2|evaluacion\s+ii|eval\s*#?\s*2|eval\s+ii|2da\s+evaluacion|2da\s+eval|2p|2do\s+parcial|segundo\s+parcial)\b/.test(
       norm
     )
   ) {
     return { category: "EXAMEN", subcategory: "Final", detected: true };
   }
 
-  // 3. EXAMEN - Parcial / 1ra Evaluación / 1P
+  // 3. EXAMEN - Parcial / 1ra Evaluación / Evaluación Primera / 1P
   if (
-    /\b(?:parcial|primer\s+parcial|1er\s+parcial|primera\s+evaluacion|1ra\s+evaluacion|1ra\s+eval|1p|examen\s+parcial|examen)\b/.test(
+    /\b(?:parcial|primer\s+parcial|1er\s+parcial|primera\s+evaluacion|evaluacion\s+primera|evaluacion\s*#?\s*1|evaluacion\s+i|eval\s*#?\s*1|eval\s+i|1ra\s+evaluacion|1era\s+evaluacion|1ra\s+eval|1p|examen\s+parcial|evaluacion\s+parcial|examen)\b/.test(
       norm
     )
   ) {
