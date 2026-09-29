@@ -52,14 +52,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
     }
 
-    if (user.role === "ADMIN") {
-      return NextResponse.json({ error: "Ya eres administrador de la plataforma." }, { status: 400 });
+    if (user.role === "ADMIN" || user.role === "MODERATOR") {
+      return NextResponse.json({ error: "Ya posees un rango administrativo/moderador en la plataforma." }, { status: 400 });
     }
 
-    if (user.approvedContributions < 10) {
+    // Verificar conteo real en tabla Document
+    const realApprovedCount = await prisma.document.count({
+      where: { uploadedById: user.id },
+    });
+    const effectiveApproved = Math.max(user.approvedContributions, realApprovedCount);
+
+    if (user.approvedContributions !== effectiveApproved) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { approvedContributions: effectiveApproved },
+      });
+    }
+
+    if (effectiveApproved < 10) {
       return NextResponse.json(
         {
-          error: `Necesitas al menos 10 documentos aprobados para solicitar el rol de Administrador. Actualmente tienes ${user.approvedContributions}.`,
+          error: `Necesitas al menos 10 documentos aprobados para solicitar el rango de Moderador. Actualmente tienes ${effectiveApproved}.`,
         },
         { status: 400 }
       );
@@ -96,7 +109,7 @@ export async function POST(req: Request) {
   }
 }
 
-// Aprobar solicitud de administrador
+// Aprobar solicitud de moderador / administrador
 export async function PATCH(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -127,7 +140,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: true, message: "Solicitud rechazada" });
     }
 
-    // Promover usuario a ADMIN
+    // Promover usuario a MODERATOR
     await prisma.$transaction([
       prisma.adminPromotionRequest.update({
         where: { id: requestId },
@@ -135,13 +148,13 @@ export async function PATCH(req: Request) {
       }),
       prisma.user.update({
         where: { id: promotion.userId },
-        data: { role: "ADMIN" },
+        data: { role: "MODERATOR" },
       }),
     ]);
 
     return NextResponse.json({
       success: true,
-      message: `El usuario ${promotion.user.name || promotion.user.email} ha sido ascendido a Administrador.`,
+      message: `El usuario ${promotion.user.name || promotion.user.email} ha sido ascendido a Moderador Académico.`,
     });
   } catch (error) {
     console.error("Error updating promotion:", error);

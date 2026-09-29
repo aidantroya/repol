@@ -60,4 +60,17 @@ export function formatPeriodTerm(term: string): string {
   return term;
 }
 
+export function formatPeriodYear(year: number | string | null | undefined): string {
+  if (year === null || year === undefined) return "S/F";
+  const str = String(year).trim().toUpperCase();
+  if (str === "0" || str === "S/F" || str === "SF" || str === "N/D" || str === "N/A" || str === "SIN FECHA" || str === "NO ESPECIFICADO") {
+    return "S/F";
+  }
+  const num = parseInt(str, 10);
+  if (isNaN(num) || num <= 0) {
+    return "S/F";
+  }
+  return num.toString();
+}
+
 

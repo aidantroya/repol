@@ -120,7 +120,7 @@ export async function POST(req: Request) {
       similar: similarDoc
         ? {
             title: similarDoc.title,
-            period: `${similarDoc.periodYear} - ${similarDoc.periodTerm}`,
+            period: `${similarDoc.periodYear > 0 ? similarDoc.periodYear : "S/F"} - ${similarDoc.periodTerm}`,
           }
         : null,
     });

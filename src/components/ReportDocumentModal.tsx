@@ -16,7 +16,7 @@ import {
   HelpCircle,
   Loader2
 } from "lucide-react";
-import { formatPeriodTerm } from "@/lib/utils";
+import { formatPeriodTerm, formatPeriodYear } from "@/lib/utils";
 
 export interface ReportModalDoc {
   id: string;
@@ -218,7 +218,7 @@ export function ReportDocumentModal({ isOpen, onClose, document: doc }: ReportDo
                 {doc.title}
               </h4>
               <p className="text-[11px] text-zinc-400">
-                {doc.subcategory} • {doc.periodYear}-{formatPeriodTerm(doc.periodTerm)}
+                {doc.subcategory} • {formatPeriodYear(doc.periodYear)} - {formatPeriodTerm(doc.periodTerm)}
               </p>
             </div>
 

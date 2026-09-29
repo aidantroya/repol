@@ -14,7 +14,7 @@ import {
   Loader2, 
   ShieldCheck 
 } from "lucide-react";
-import { getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+import { getCategoryBadgeColor, getCategoryLabel, formatPeriodYear, formatPeriodTerm } from "@/lib/utils";
 import Link from "next/link";
 
 interface UserSubmission {
@@ -50,13 +50,16 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [submissions, setSubmissions] = useState<UserSubmission[]>([]);
+  const [liveContributions, setLiveContributions] = useState<number | null>(null);
+  const [liveRole, setLiveRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [promotionLoading, setPromotionLoading] = useState(false);
   const [promotionRequested, setPromotionRequested] = useState(false);
   const [promotionMessage, setPromotionMessage] = useState("");
 
   const user = session?.user;
-  const contributions = user?.approvedContributions || 0;
+  const currentRole = liveRole || user?.role || "STUDENT";
+  const contributions = liveContributions !== null ? liveContributions : (user?.approvedContributions || 0);
   const progressPercent = Math.min(100, Math.round((contributions / 10) * 100));
 
   useEffect(() => {
@@ -72,6 +75,12 @@ export default function ProfilePage() {
         const data = await res.json();
         if (data.submissions) {
           setSubmissions(data.submissions);
+        }
+        if (typeof data.approvedContributions === "number") {
+          setLiveContributions(data.approvedContributions);
+        }
+        if (data.role) {
+          setLiveRole(data.role);
         }
       } catch (e) {
         console.error("Error al cargar envíos:", e);
@@ -140,11 +149,11 @@ export default function ProfilePage() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-bold text-white">{user?.name || "Estudiante"}</h1>
-                {user?.role === "ADMIN" ? (
+                {currentRole === "ADMIN" ? (
                   <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
                     <ShieldCheck className="h-3.5 w-3.5" /> Administrador Principal
                   </span>
-                ) : user?.role === "MODERATOR" ? (
+                ) : currentRole === "MODERATOR" ? (
                   <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-bold text-indigo-300">
                     <ShieldCheck className="h-3.5 w-3.5" /> Moderador Académico
                   </span>
@@ -168,7 +177,7 @@ export default function ProfilePage() {
         </div>
 
         {/* Sección de Meta de 10 Contribuciones para Moderador */}
-        {user?.role === "STUDENT" && (
+        {currentRole === "STUDENT" && (
           <div className="mt-8 rounded-2xl border border-zinc-800/80 bg-zinc-950/70 p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -198,7 +207,7 @@ export default function ProfilePage() {
               ) : (
                 <div className="text-right">
                   <span className="text-xs font-semibold text-zinc-400">Te faltan</span>
-                  <div className="text-lg font-bold text-blue-400">{10 - contributions} documentos</div>
+                  <div className="text-lg font-bold text-blue-400">{Math.max(0, 10 - contributions)} documentos</div>
                 </div>
               )}
             </div>
@@ -269,7 +278,7 @@ export default function ProfilePage() {
                     </span>
                     <span className="text-xs font-semibold text-zinc-300">{sub.subcategory}</span>
                     <span className="text-xs text-zinc-500 font-mono">
-                      • {sub.periodYear}-{sub.periodTerm}
+                      • {formatPeriodYear(sub.periodYear)} - {formatPeriodTerm(sub.periodTerm)}
                     </span>
                   </div>
 

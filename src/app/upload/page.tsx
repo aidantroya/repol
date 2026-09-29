@@ -711,7 +711,7 @@ export default function UploadPage() {
             category: item.category,
             subcategory: item.subcategory,
             customDescription: item.subcategory === "Otro" ? item.customDescription : null,
-            periodYear: parseInt(item.periodYear, 10),
+            periodYear: (item.periodYear === "S/F" || item.periodYear === "0" || !item.periodYear || isNaN(parseInt(item.periodYear, 10))) ? 0 : parseInt(item.periodYear, 10),
             periodTerm: item.periodTerm,
             subjectId: item.subjectId,
           }),
@@ -1241,17 +1241,15 @@ export default function UploadPage() {
                           </select>
                         </div>
 
-                        {/* Año (Reducido a tamaño exacto) */}
-                        <div className="w-24 shrink-0">
+                        {/* Año (Permite año o S/F Sin fecha) */}
+                        <div className="w-28 shrink-0">
                           <label className="block text-xs font-medium text-zinc-400 mb-1">Año</label>
                           <input
-                            type="number"
-                            min="1990"
-                            max="2099"
-                            step="1"
+                            type="text"
                             value={item.periodYear}
                             onChange={(e) => updateQueueItem(item.id, { periodYear: e.target.value })}
-                            placeholder="2025"
+                            placeholder="2026 o S/F"
+                            title="Ingresa el año o escribe S/F si no tiene fecha definida"
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-xs text-white focus:border-blue-500 focus:outline-none text-center font-mono"
                           />
                         </div>

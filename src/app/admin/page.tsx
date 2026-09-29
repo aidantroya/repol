@@ -21,7 +21,7 @@ import {
   BookPlus,
   MessageSquare
 } from "lucide-react";
-import { getCategoryBadgeColor, getCategoryLabel } from "@/lib/utils";
+import { getCategoryBadgeColor, getCategoryLabel, formatPeriodYear, formatPeriodTerm } from "@/lib/utils";
 
 interface FeedbackItem {
   id: string;
@@ -481,7 +481,7 @@ export default function AdminDashboardPage() {
                         )}
                       </div>
                       <span className="text-xs text-zinc-400 font-mono">
-                        {sub.periodYear} - {sub.periodTerm}
+                        {formatPeriodYear(sub.periodYear)} - {formatPeriodTerm(sub.periodTerm)}
                       </span>
                     </div>
 
@@ -689,7 +689,7 @@ export default function AdminDashboardPage() {
                           <GraduationCap className="h-3.5 w-3.5" />
                           <span>{rep.document.subject.name} ({rep.document.subject.code})</span>
                           <span className="text-zinc-600">•</span>
-                          <span className="text-zinc-400">{rep.document.subcategory} ({rep.document.periodYear}-{rep.document.periodTerm})</span>
+                          <span className="text-zinc-400">{rep.document.subcategory} ({formatPeriodYear(rep.document.periodYear)}-{formatPeriodTerm(rep.document.periodTerm)})</span>
                         </div>
                         <h4 className="text-sm font-bold text-white truncate" title={rep.document.title}>
                           {rep.document.title}

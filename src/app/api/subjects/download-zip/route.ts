@@ -109,7 +109,8 @@ export async function GET(req: Request) {
         if (fileBuffer) {
           const cleanTitle = sanitizeFilename(doc.title);
           const ext = doc.mimeType.includes("pdf") ? ".pdf" : "";
-          const fileName = `${doc.periodYear}_${doc.periodTerm}_${cleanTitle}${ext.length > 0 ? ext : ""}`;
+          const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
+          const fileName = `${yearLabel}_${doc.periodTerm}_${cleanTitle}${ext.length > 0 ? ext : ""}`;
 
           targetFolder.file(fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`, fileBuffer);
           filesAddedCount++;
@@ -119,7 +120,8 @@ export async function GET(req: Request) {
         if (doc.attachments && Array.isArray(doc.attachments) && doc.attachments.length > 0) {
           const attachmentsList = doc.attachments as Array<{ name: string; fileUrl: string; storageKey?: string }>;
           const cleanDocTitle = sanitizeFilename(doc.title).substring(0, 30);
-          const attFolder = targetFolder.folder(`Anexos_${doc.periodYear}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
+          const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
+          const attFolder = targetFolder.folder(`Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
 
           if (attFolder) {
             for (const att of attachmentsList) {

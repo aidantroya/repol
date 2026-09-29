@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
-import { formatPeriodTerm } from "@/lib/utils";
+import { formatPeriodTerm, formatPeriodYear } from "@/lib/utils";
 import Link from "next/link";
 
 interface Career {
@@ -159,10 +159,15 @@ export default function HomePage() {
       "1PAO": 1, "1T": 1,
     };
     
-    // Sort comparator
+    // Sort comparator con soporte para año no especificado (S/F / 0)
     const sortDocs = (a: DocumentItem, b: DocumentItem) => {
+      const yearA = a.periodYear || 0;
+      const yearB = b.periodYear || 0;
+
       if (sortBy === "year_asc") {
-        if (a.periodYear !== b.periodYear) return a.periodYear - b.periodYear;
+        if (yearA === 0 && yearB !== 0) return 1;
+        if (yearB === 0 && yearA !== 0) return -1;
+        if (yearA !== yearB) return yearA - yearB;
         const termA = termOrder[a.periodTerm] ?? 0;
         const termB = termOrder[b.periodTerm] ?? 0;
         return termA - termB;
@@ -171,7 +176,9 @@ export default function HomePage() {
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       }
       // Default: year_desc (más reciente a más antiguo por año de evaluación)
-      if (b.periodYear !== a.periodYear) return b.periodYear - a.periodYear;
+      if (yearA === 0 && yearB !== 0) return 1;
+      if (yearB === 0 && yearA !== 0) return -1;
+      if (yearB !== yearA) return yearB - yearA;
       const termA = termOrder[a.periodTerm] ?? 0;
       const termB = termOrder[b.periodTerm] ?? 0;
       return termB - termA;
@@ -602,8 +609,8 @@ export default function HomePage() {
 
                               <div className="flex items-center gap-2 text-xs text-zinc-500">
                                 <span className="hidden sm:inline">
-                                  {folder.documents[0]?.periodYear
-                                    ? `Más reciente: ${folder.documents[0].periodYear} - ${formatPeriodTerm(folder.documents[0].periodTerm)}`
+                                  {folder.documents[0]
+                                    ? `Más reciente: ${formatPeriodYear(folder.documents[0].periodYear)} - ${formatPeriodTerm(folder.documents[0].periodTerm)}`
                                     : ""}
                                 </span>
                                 <ChevronRight

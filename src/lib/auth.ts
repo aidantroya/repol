@@ -118,10 +118,26 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string;
-        session.user.role = (token.role as "STUDENT" | "MODERATOR" | "ADMIN") || "STUDENT";
-        session.user.approvedContributions = (token.approvedContributions as number) || 0;
+        
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { role: true, approvedContributions: true, email: true },
+          });
+
+          if (dbUser) {
+            session.user.role = dbUser.role as "STUDENT" | "MODERATOR" | "ADMIN";
+            session.user.approvedContributions = dbUser.approvedContributions;
+          } else {
+            session.user.role = (token.role as "STUDENT" | "MODERATOR" | "ADMIN") || "STUDENT";
+            session.user.approvedContributions = (token.approvedContributions as number) || 0;
+          }
+        } catch {
+          session.user.role = (token.role as "STUDENT" | "MODERATOR" | "ADMIN") || "STUDENT";
+          session.user.approvedContributions = (token.approvedContributions as number) || 0;
+        }
 
         if (session.user.email && SUPER_ADMIN_EMAILS.includes(session.user.email.toLowerCase())) {
           session.user.role = "ADMIN";

@@ -14,7 +14,7 @@ import {
   Flag,
   Edit3
 } from "lucide-react";
-import { formatBytes, getCategoryBadgeColor, getCategoryLabel, formatPeriodTerm } from "@/lib/utils";
+import { formatBytes, getCategoryBadgeColor, getCategoryLabel, formatPeriodTerm, formatPeriodYear } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
 import { ReportDocumentModal } from "./ReportDocumentModal";
 import { EditDocumentModal } from "./EditDocumentModal";
@@ -169,7 +169,7 @@ export function DocumentCard({
             </div>
             
             <div className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 font-mono bg-zinc-950/80 px-2 py-0.5 rounded-md border border-zinc-800">
-              <span>{doc.periodYear}</span>
+              <span>{formatPeriodYear(doc.periodYear)}</span>
               <span className="text-zinc-600">•</span>
               <span className="text-blue-400 font-bold">{formatPeriodTerm(doc.periodTerm)}</span>
             </div>

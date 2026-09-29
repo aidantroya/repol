@@ -181,8 +181,19 @@ export async function PUT(req: Request) {
     if (customDescription !== undefined) updateData.customDescription = customDescription ? String(customDescription).trim() : null;
     if (category !== undefined) updateData.category = category;
     if (subcategory !== undefined) updateData.subcategory = String(subcategory).trim();
-    if (periodYear !== undefined) updateData.periodYear = parseInt(String(periodYear), 10);
-    if (periodTerm !== undefined) updateData.periodTerm = String(periodTerm).trim();
+    if (periodYear !== undefined) {
+      const rawYearStr = String(periodYear).trim().toUpperCase();
+      updateData.periodYear = (rawYearStr === "S/F" || rawYearStr === "0" || rawYearStr === "SF" || rawYearStr === "N/D" || rawYearStr === "N/A" || rawYearStr === "SIN FECHA")
+        ? 0
+        : (isNaN(parseInt(rawYearStr, 10)) || parseInt(rawYearStr, 10) <= 0 ? 0 : parseInt(rawYearStr, 10));
+    }
+    if (periodTerm !== undefined) {
+      let cleanTerm = String(periodTerm).trim().toUpperCase();
+      if (cleanTerm === "1T" || cleanTerm === "1-PAO" || cleanTerm === "1") cleanTerm = "1PAO";
+      else if (cleanTerm === "2T" || cleanTerm === "2-PAO" || cleanTerm === "2") cleanTerm = "2PAO";
+      else if (cleanTerm === "3T" || cleanTerm === "3PAO" || cleanTerm === "INTENSIVO") cleanTerm = "PAE";
+      updateData.periodTerm = cleanTerm;
+    }
     if (subjectId !== undefined) updateData.subjectId = String(subjectId).trim();
     if (fileUrl !== undefined) updateData.fileUrl = String(fileUrl).trim();
     if (attachments !== undefined) updateData.attachments = attachments;

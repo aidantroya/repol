@@ -344,6 +344,7 @@ export function EditDocumentModal({
                   onChange={(e) => setPeriodYear(parseInt(e.target.value, 10))}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
+                  <option value={0}>S/F (Sin fecha / No especificado)</option>
                   {years.map((y) => (
                     <option key={y} value={y}>
                       {y}
