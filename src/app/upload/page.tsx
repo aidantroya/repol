@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
+import { detectDocumentMetadata, DetectedDocumentMetadata, SubjectOption } from "@/lib/metadata-detector";
 
 interface DriveFolderChildItem {
   fileId: string;
@@ -159,6 +160,15 @@ export default function UploadPage() {
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
   }, [careers]);
 
+  // Lista de materias formateada para el detector inteligente de metadatos
+  const subjectOptionsForDetection: SubjectOption[] = useMemo(() => {
+    return allSubjectOptions.map((o) => ({
+      id: o.value,
+      name: o.label,
+      code: o.badge || "",
+    }));
+  }, [allSubjectOptions]);
+
   // Función para obtener subcategorías dinámicas
   const getSubcategoryOptions = (cat: "CLASE" | "LECCION" | "TALLER" | "EXAMEN") => {
     switch (cat) {
@@ -201,18 +211,23 @@ export default function UploadPage() {
       const cleanName = currentFile.name.replace(/\.[^/.]+$/, "");
       const itemId = `doc-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
 
+      // 1. Detección inteligente preliminar e instantánea en el cliente por nombre de archivo
+      const detected = detectDocumentMetadata(currentFile.name, "", subjectOptionsForDetection);
+
       const item: UploadQueueItem = {
         id: itemId,
         mode: "FILE",
         file: currentFile,
         title: cleanName,
         description: "",
-        subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
-        category: globalCategory,
-        subcategory: globalSubcategory,
+        subjectId: detected.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+        category: detected.confidence.category ? detected.category : globalCategory,
+        subcategory: detected.confidence.category ? detected.subcategory : globalSubcategory,
         customDescription: "",
-        periodYear: globalYear || new Date().getFullYear().toString(),
-        periodTerm: globalPeriodTerm || "1PAO",
+        periodYear: (detected.periodYear && detected.periodYear !== "S/F")
+          ? detected.periodYear
+          : (detected.confidence.periodYear ? "S/F" : (globalYear || new Date().getFullYear().toString())),
+        periodTerm: detected.confidence.periodTerm ? detected.periodTerm : (globalPeriodTerm || "1PAO"),
         fileHash: "",
         isHashing: true,
         duplicateCheck: null,
@@ -226,7 +241,7 @@ export default function UploadPage() {
 
     setQueue((prev) => [...prev, ...newItems]);
 
-    // Calcular Hash SHA-256 / Semántico de forma asíncrona para cada archivo agregado
+    // 2. Detección en profundidad en el servidor (leyendo encabezado completo de PDF/DOCX) y cálculo de hash
     for (const item of newItems) {
       if (item.file) {
         try {
@@ -244,30 +259,43 @@ export default function UploadPage() {
           if (res.ok) {
             const dupRes = await res.json();
             const calculatedHash = dupRes.fileHash || item.fileHash;
+            const meta = dupRes.detectedMetadata;
 
             setQueue((prev) => {
               const isDuplicateInQueue = prev.some(
                 (q) => q.id !== item.id && q.fileHash && q.fileHash === calculatedHash
               );
 
-              return prev.map((q) =>
-                q.id === item.id
-                  ? {
-                      ...q,
-                      fileHash: calculatedHash,
-                      isHashing: false,
-                      duplicateCheck: isDuplicateInQueue
-                        ? {
-                            exists: true,
-                            type: "IN_QUEUE_DUPLICATE",
-                            message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
-                          }
-                        : dupRes.exists
-                        ? { exists: true, type: dupRes.type, message: dupRes.message }
-                        : { exists: false },
-                    }
-                  : q
-              );
+              return prev.map((q) => {
+                if (q.id !== item.id) return q;
+
+                // Re-alimentar automáticamente los datos si el servidor extrajo más certeza del PDF/Word
+                const updatedSubject = meta?.subjectId || q.subjectId;
+                const updatedCategory = meta?.confidence?.category ? meta.category : q.category;
+                const updatedSubcategory = meta?.confidence?.category ? meta.subcategory : q.subcategory;
+                const updatedYear = (meta?.confidence?.periodYear && meta?.periodYear) ? meta.periodYear : q.periodYear;
+                const updatedTerm = (meta?.confidence?.periodTerm && meta?.periodTerm) ? meta.periodTerm : q.periodTerm;
+
+                return {
+                  ...q,
+                  subjectId: updatedSubject,
+                  category: updatedCategory,
+                  subcategory: updatedSubcategory,
+                  periodYear: updatedYear,
+                  periodTerm: updatedTerm,
+                  fileHash: calculatedHash,
+                  isHashing: false,
+                  duplicateCheck: isDuplicateInQueue
+                    ? {
+                        exists: true,
+                        type: "IN_QUEUE_DUPLICATE",
+                        message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
+                      }
+                    : dupRes.exists
+                    ? { exists: true, type: dupRes.type, message: dupRes.message }
+                    : { exists: false },
+                };
+              });
             });
           } else {
             const hash = await calculateSHA256(item.file);
@@ -346,42 +374,8 @@ export default function UploadPage() {
 
       if (data.isFolder && Array.isArray(data.items)) {
         // Carpeta de Google Drive: agregar todos los archivos contenidos como ítems individuales
-        const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem, idx: number) => {
-          const combinedPath = `${item.folderPath || ""} ${item.name}`.toLowerCase();
-          let itemCategory: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" = globalCategory;
-          let itemSubcategory = globalSubcategory;
-
-          if (combinedPath.includes("examen") || combinedPath.includes("exam")) {
-            itemCategory = "EXAMEN";
-            if (combinedPath.includes("final")) itemSubcategory = "Final";
-            else if (combinedPath.includes("mejoramiento")) itemSubcategory = "Mejoramiento";
-            else itemSubcategory = "Parcial";
-          } else if (combinedPath.includes("leccion") || combinedPath.includes("lección")) {
-            itemCategory = "LECCION";
-            if (combinedPath.includes("1") || combinedPath.includes("uno")) itemSubcategory = "Lección 1";
-            else if (combinedPath.includes("2") || combinedPath.includes("dos")) itemSubcategory = "Lección 2";
-            else if (combinedPath.includes("3") || combinedPath.includes("tres")) itemSubcategory = "Lección 3";
-            else if (combinedPath.includes("4") || combinedPath.includes("cuatro")) itemSubcategory = "Lección 4";
-            else itemSubcategory = "Lección 1";
-          } else if (combinedPath.includes("taller") || combinedPath.includes("deber") || combinedPath.includes("tarea")) {
-            itemCategory = "TALLER";
-            if (combinedPath.includes("1")) itemSubcategory = "Taller 1";
-            else if (combinedPath.includes("2")) itemSubcategory = "Taller 2";
-            else if (combinedPath.includes("3")) itemSubcategory = "Taller 3";
-            else if (combinedPath.includes("4")) itemSubcategory = "Taller 4";
-            else itemSubcategory = "Taller 1";
-          } else if (
-            combinedPath.includes("clase") ||
-            combinedPath.includes("apunte") ||
-            combinedPath.includes("diapositiva") ||
-            combinedPath.includes("guia") ||
-            combinedPath.includes("guía")
-          ) {
-            itemCategory = "CLASE";
-            if (combinedPath.includes("diapositiva")) itemSubcategory = "Diapositivas";
-            else if (combinedPath.includes("guia") || combinedPath.includes("guía")) itemSubcategory = "Guía Teórica";
-            else itemSubcategory = "Apuntes de Clase";
-          }
+        const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem & { detectedMetadata?: DetectedDocumentMetadata }, idx: number) => {
+          const meta = item.detectedMetadata || detectDocumentMetadata(`${item.folderPath || ""} ${item.name}`, "", subjectOptionsForDetection);
 
           return {
             id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -389,12 +383,12 @@ export default function UploadPage() {
             driveUrl: item.fileUrl,
             title: item.name || `Documento ${idx + 1}`,
             description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
-            subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
-            category: itemCategory,
-            subcategory: itemSubcategory,
+            subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+            category: meta.category || globalCategory,
+            subcategory: meta.subcategory || globalSubcategory,
             customDescription: "",
-            periodYear: new Date().getFullYear().toString(),
-            periodTerm: "1PAO",
+            periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
+            periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
             fileHash: item.fileHash,
             isHashing: false,
             duplicateCheck: item.exists
@@ -421,6 +415,7 @@ export default function UploadPage() {
       }
 
       // Archivo único de Google Drive
+      const meta = data.detectedMetadata || detectDocumentMetadata(data.name || inputDriveUrl, "", subjectOptionsForDetection);
       const itemId = `drive-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newItem: UploadQueueItem = {
         id: itemId,
@@ -428,12 +423,12 @@ export default function UploadPage() {
         driveUrl: inputDriveUrl,
         title: data.name || `Material Drive - ${new Date().toLocaleDateString()}`,
         description: "",
-        subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
-        category: globalCategory,
-        subcategory: globalSubcategory,
+        subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+        category: meta.category || globalCategory,
+        subcategory: meta.subcategory || globalSubcategory,
         customDescription: "",
-        periodYear: globalYear || new Date().getFullYear().toString(),
-        periodTerm: globalPeriodTerm || "1PAO",
+        periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
+        periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
         fileHash: data.fileHash,
         isHashing: false,
         duplicateCheck: data.exists

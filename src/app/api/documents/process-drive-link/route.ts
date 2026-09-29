@@ -8,6 +8,7 @@ import {
   getGoogleDriveDownloadUrl 
 } from "@/lib/drive-utils";
 import { prisma } from "@/lib/prisma";
+import { detectDocumentMetadata } from "@/lib/metadata-detector";
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +17,10 @@ export async function POST(req: Request) {
     if (!driveUrl) {
       return NextResponse.json({ error: "El enlace de Google Drive es obligatorio" }, { status: 400 });
     }
+
+    const allSubjects = await prisma.subject.findMany({
+      select: { id: true, name: true, code: true },
+    });
 
     const folderId = extractGoogleDriveFolderId(driveUrl);
 
@@ -72,6 +77,8 @@ export async function POST(req: Request) {
           });
 
           const isDuplicate = Boolean(existingDoc || existingSub);
+          const combinedDriveText = `${file.folderPath || ""} ${file.name}`;
+          const detectedMetadata = detectDocumentMetadata(file.name, combinedDriveText, allSubjects);
 
           return {
             fileId: file.id,
@@ -84,6 +91,7 @@ export async function POST(req: Request) {
             downloadUrl: getGoogleDriveDownloadUrl(file.id),
             folderPath: file.folderPath,
             exists: isDuplicate,
+            detectedMetadata,
             duplicateMessage: existingDoc
               ? "Este archivo ya existe en el repositorio."
               : existingSub
@@ -171,18 +179,21 @@ export async function POST(req: Request) {
 
     const previewUrl = getGoogleDrivePreviewUrl(fileId);
     const downloadUrl = getGoogleDriveDownloadUrl(fileId);
+    const fileNameFallback = "Documento Google Drive";
+    const detectedMetadata = detectDocumentMetadata(fileNameFallback, "", allSubjects);
 
     return NextResponse.json({
       isFolder: false,
       exists: false,
       fileId,
-      name: "Documento Google Drive",
+      name: fileNameFallback,
       fileHash,
       fileSize,
       mimeType,
       storageKey: `gdrive:${fileId}`,
       fileUrl: previewUrl,
       downloadUrl,
+      detectedMetadata,
     });
   } catch (error: unknown) {
     console.error("Error processing Google Drive link:", error);

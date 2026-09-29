@@ -29,14 +29,16 @@ export async function extractDocxFingerprint(buffer: Buffer): Promise<{
   normalizedText: string;
   imageHashes: string[];
   rawTextLength: number;
+  rawText: string;
 }> {
   let normalizedText = "";
   let rawTextLength = 0;
+  let rawText = "";
   const imageHashes: string[] = [];
 
   try {
     const textResult = await mammoth.extractRawText({ buffer });
-    const rawText = textResult.value || "";
+    rawText = textResult.value || "";
     rawTextLength = rawText.length;
     normalizedText = normalizeTextForHashing(rawText);
   } catch (e) {
@@ -59,7 +61,7 @@ export async function extractDocxFingerprint(buffer: Buffer): Promise<{
     console.warn("Error al extraer imágenes de DOCX:", e);
   }
 
-  return { normalizedText, imageHashes, rawTextLength };
+  return { normalizedText, imageHashes, rawTextLength, rawText };
 }
 
 /**
@@ -69,14 +71,15 @@ export async function extractPdfFingerprint(buffer: Buffer): Promise<{
   normalizedText: string;
   imageHashes: string[];
   rawTextLength: number;
+  rawText: string;
 }> {
   let normalizedText = "";
   let rawTextLength = 0;
+  let rawText = "";
   const imageHashes: string[] = [];
 
   try {
     const result = await extractText(new Uint8Array(buffer));
-    let rawText = "";
     if (typeof result === "string") {
       rawText = result;
     } else if (result && Array.isArray(result.text)) {
@@ -90,7 +93,7 @@ export async function extractPdfFingerprint(buffer: Buffer): Promise<{
     console.warn("Error al extraer texto de PDF con unpdf:", e);
   }
 
-  return { normalizedText, imageHashes, rawTextLength };
+  return { normalizedText, imageHashes, rawTextLength, rawText };
 }
 
 /**
@@ -109,6 +112,7 @@ export async function computeSemanticContentHash(
   isPdf: boolean;
   hasText: boolean;
   textLength: number;
+  rawText: string;
 }> {
   const rawSha256 = crypto.createHash("sha256").update(buffer).digest("hex");
   const isDocx =
@@ -118,17 +122,20 @@ export async function computeSemanticContentHash(
   const isPdf = filename.toLowerCase().endsWith(".pdf") || mimeType.includes("pdf");
 
   let normalizedText = "";
+  let rawText = "";
   let imageHashes: string[] = [];
   let textLength = 0;
 
   if (isDocx) {
     const fp = await extractDocxFingerprint(buffer);
     normalizedText = fp.normalizedText;
+    rawText = fp.rawText;
     imageHashes = fp.imageHashes;
     textLength = fp.rawTextLength;
   } else if (isPdf) {
     const fp = await extractPdfFingerprint(buffer);
     normalizedText = fp.normalizedText;
+    rawText = fp.rawText;
     imageHashes = fp.imageHashes;
     textLength = fp.rawTextLength;
   }
@@ -138,16 +145,16 @@ export async function computeSemanticContentHash(
   if (normalizedText.length >= 15) {
     const payload = `text:${normalizedText}`;
     const contentHash = "sem_" + crypto.createHash("sha256").update(payload).digest("hex");
-    return { contentHash, rawSha256, isDocx, isPdf, hasText: true, textLength };
+    return { contentHash, rawSha256, isDocx, isPdf, hasText: true, textLength, rawText };
   }
 
   // 2. Si no contiene texto pero contiene imágenes internas (ej. fotos o esquemas)
   if (imageHashes.length > 0) {
     const payload = `img:${imageHashes.join(",")}`;
     const contentHash = "img_" + crypto.createHash("sha256").update(payload).digest("hex");
-    return { contentHash, rawSha256, isDocx, isPdf, hasText: false, textLength };
+    return { contentHash, rawSha256, isDocx, isPdf, hasText: false, textLength, rawText };
   }
 
   // 3. Fallback a hash binario puro
-  return { contentHash: rawSha256, rawSha256, isDocx, isPdf, hasText: false, textLength };
+  return { contentHash: rawSha256, rawSha256, isDocx, isPdf, hasText: false, textLength, rawText };
 }
