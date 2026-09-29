@@ -252,7 +252,7 @@ export default function HomePage() {
   };
 
   const handleDocUpdated = (updatedDoc: DocumentItem) => {
-    setDocuments((prev) => prev.map((d) => (d.id === updatedDoc.id ? updatedDoc : d)));
+    setDocuments((prev) => prev.map((d) => (d.id === updatedDoc.id ? { ...d, ...updatedDoc } : d)));
   };
 
   return (

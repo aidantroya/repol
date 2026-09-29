@@ -44,7 +44,9 @@ export function EditDocumentModal({
   const [subcategory, setSubcategory] = useState(initialDoc.subcategory);
   const [customSubcategory, setCustomSubcategory] = useState("");
   const [customDescription, setCustomDescription] = useState(initialDoc.customDescription || "");
-  const [periodYear, setPeriodYear] = useState<number>(initialDoc.periodYear || new Date().getFullYear());
+  const [periodYear, setPeriodYear] = useState<number>(
+    typeof initialDoc.periodYear === "number" ? initialDoc.periodYear : (parseInt(String(initialDoc.periodYear), 10) || 0)
+  );
   const [periodTerm, setPeriodTerm] = useState<string>(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
 
@@ -106,7 +108,7 @@ export function EditDocumentModal({
     loadSubjects();
   }, [isOpen, initialDoc.subject]);
 
-  // Sincronizar estado cuando cambia el documento
+  // Sincronizar estado cuando cambia el documento o se abre el modal
   useEffect(() => {
     if (isOpen) {
       setTitle(initialDoc.title);
@@ -114,7 +116,10 @@ export function EditDocumentModal({
       setCategory(initialDoc.category);
       setSubcategory(initialDoc.subcategory);
       setCustomDescription(initialDoc.customDescription || "");
-      setPeriodYear(initialDoc.periodYear || new Date().getFullYear());
+      const parsedInitialYear = typeof initialDoc.periodYear === "number" 
+        ? initialDoc.periodYear 
+        : (parseInt(String(initialDoc.periodYear), 10) || 0);
+      setPeriodYear(parsedInitialYear);
       setPeriodTerm(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
       setAttachments(Array.isArray(initialDoc.attachments) ? [...initialDoc.attachments] : []);
       setShowAddAttachment(false);
@@ -135,7 +140,13 @@ export function EditDocumentModal({
   };
 
   const currentSubcategories = subcategoryOptions[category] || ["General", "Otro"];
-  const years = Array.from({ length: 15 }, (_, i) => new Date().getFullYear() - i + 1);
+  const currentYear = new Date().getFullYear();
+  const baseYears = Array.from({ length: 20 }, (_, i) => currentYear - i + 1);
+  const years = Array.from(new Set([
+    ...baseYears,
+    ...(typeof periodYear === "number" && periodYear > 0 ? [periodYear] : []),
+    ...(typeof initialDoc.periodYear === "number" && initialDoc.periodYear > 0 ? [initialDoc.periodYear] : [])
+  ])).sort((a, b) => b - a);
 
   const handleAddAttachment = () => {
     if (!newAttName.trim() || !newAttUrl.trim()) {
@@ -341,7 +352,10 @@ export function EditDocumentModal({
                 </label>
                 <select
                   value={periodYear}
-                  onChange={(e) => setPeriodYear(parseInt(e.target.value, 10))}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setPeriodYear(isNaN(val) ? 0 : val);
+                  }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
                   <option value={0}>S/F (Sin fecha / No especificado)</option>
