@@ -14,6 +14,7 @@ import JSZip from "jszip";
 export function normalizeTextForHashing(rawText: string): string {
   if (!rawText) return "";
   return rawText
+    .replace(/([a-zA-Z])\s*[\u00b4\u0060\'\^~˜\u02DC\u0300-\u036f]\s*([a-zA-Z])/g, "$1$2")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Remueve acentos y diacríticos

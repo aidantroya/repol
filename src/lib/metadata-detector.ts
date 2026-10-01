@@ -40,12 +40,22 @@ export interface DetectedDocumentMetadata {
 }
 
 /**
+ * Limpia y une diacríticos tipográficos de LaTeX (ej. 'soluci ´on' -> 'solucion', 'a˜no' -> 'ano')
+ */
+export function cleanLatexAccents(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/([a-zA-Z])\s*[\u00b4\u0060\'\^~˜\u02DC\u0300-\u036f]\s*([a-zA-Z])/g, "$1$2")
+    .replace(/[\u00b4\u0060\'\^~˜\u02DC]/g, " ");
+}
+
+/**
  * Normaliza cadenas para comparación fonética/semántica:
- * Remueve tildes, separa letras y números pegados (ej. 'leccion1' -> 'leccion 1'), símbolos, mayúsculas y reduce espacios.
+ * Limpia artefactos LaTeX, remueve tildes, separa letras y números pegados (ej. 'leccion1' -> 'leccion 1'), símbolos, mayúsculas y reduce espacios.
  */
 export function normalizeString(str: string): string {
   if (!str) return "";
-  return str
+  return cleanLatexAccents(str)
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "") // Remueve acentos
@@ -62,8 +72,11 @@ export function normalizeString(str: string): string {
 export function detectIsSolution(combinedText: string): boolean {
   if (!combinedText) return false;
   const norm = normalizeString(combinedText);
-  return /\b(?:solucion|solucionario|soluciones|sol|rubrica|pauta|clave|respuestas|resuelto|resueltos|calificado|solution|solutions|answer|answers)\b/.test(
-    norm
+  return (
+    /\b(?:solucion|solucionario|soluciones|sol|rubrica|pauta|clave|respuestas|resuelto|resueltos|calificado|solution|solutions|answer|answers)\b/.test(
+      norm
+    ) ||
+    /\b(?:soluci\s*on|soluci\s*onario|r\s*ubrica|resoluci\s*on)\b/.test(norm)
   );
 }
 
