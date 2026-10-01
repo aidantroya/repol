@@ -17,11 +17,13 @@ import {
   Paperclip,
   Plus,
   Trash2,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from "lucide-react";
 import { DocumentItem, AttachmentItem } from "./DocumentCard";
 import { SearchableSelect, SearchableOption } from "./SearchableSelect";
 import { formatPeriodTerm } from "@/lib/utils";
+import { generateCleanDocumentTitle, detectIsSolution } from "@/lib/metadata-detector";
 
 interface EditDocumentModalProps {
   isOpen: boolean;
@@ -171,6 +173,29 @@ export function EditDocumentModal({
     ...(typeof initialDoc.periodYear === "number" && initialDoc.periodYear > 0 ? [initialDoc.periodYear] : [])
   ])).sort((a, b) => b - a);
 
+  const autoUpdateTitle = (
+    newCat: "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA",
+    newSubcat: string,
+    newYear: number,
+    newTerm: string
+  ) => {
+    if (
+      (newCat === "EXAMEN" || newCat === "LECCION" || newCat === "TALLER") &&
+      newSubcat !== "Otro"
+    ) {
+      const isSol = detectIsSolution(title) || detectIsSolution(initialDoc.title);
+      const generated = generateCleanDocumentTitle({
+        category: newCat,
+        subcategory: newSubcat,
+        periodYear: newYear > 0 ? String(newYear) : "S/F",
+        periodTerm: newTerm,
+        isSolution: isSol,
+        originalFilename: initialDoc.title,
+      });
+      setTitle(generated);
+    }
+  };
+
   const handleAddAttachment = () => {
     if (!newAttName.trim() || !newAttUrl.trim()) {
       alert("Por favor ingresa tanto el nombre como el enlace del archivo adjunto.");
@@ -299,11 +324,33 @@ export function EditDocumentModal({
 
           <form id="edit-doc-form" onSubmit={handleSave} className="space-y-5">
             
-            {/* Título */}
+            {/* Título con botón para estandarizar */}
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center gap-1.5">
-                <FileText className="h-3.5 w-3.5 text-blue-400" />
-                Título del Documento *
+              <label className="block text-xs font-semibold text-zinc-300 mb-1.5 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <FileText className="h-3.5 w-3.5 text-blue-400" />
+                  Título del Documento *
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const isSol = detectIsSolution(title) || detectIsSolution(initialDoc.title);
+                    const generated = generateCleanDocumentTitle({
+                      category,
+                      subcategory,
+                      periodYear: periodYear > 0 ? String(periodYear) : "S/F",
+                      periodTerm,
+                      isSolution: isSol,
+                      originalFilename: initialDoc.title,
+                    });
+                    setTitle(generated);
+                  }}
+                  className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium transition"
+                  title="Regenerar título en formato estandarizado"
+                >
+                  <Sparkles className="h-3 w-3" />
+                  <span>Estandarizar título</span>
+                </button>
               </label>
               <input
                 type="text"
@@ -379,7 +426,9 @@ export function EditDocumentModal({
                   value={periodYear}
                   onChange={(e) => {
                     const val = parseInt(e.target.value, 10);
-                    setPeriodYear(isNaN(val) ? 0 : val);
+                    const newYear = isNaN(val) ? 0 : val;
+                    setPeriodYear(newYear);
+                    autoUpdateTitle(category, subcategory, newYear, periodTerm);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -400,7 +449,11 @@ export function EditDocumentModal({
                 </label>
                 <select
                   value={periodTerm}
-                  onChange={(e) => setPeriodTerm(e.target.value)}
+                  onChange={(e) => {
+                    const newTerm = e.target.value;
+                    setPeriodTerm(newTerm);
+                    autoUpdateTitle(category, subcategory, periodYear, newTerm);
+                  }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
                   <option value="1PAO">1PAO (Primer PAO)</option>
@@ -423,8 +476,10 @@ export function EditDocumentModal({
                   value={category}
                   onChange={(e) => {
                     const newCat = e.target.value as "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA";
+                    const newSubcat = subcategoryOptions[newCat]?.[0] || "General";
                     setCategory(newCat);
-                    setSubcategory(subcategoryOptions[newCat]?.[0] || "General");
+                    setSubcategory(newSubcat);
+                    autoUpdateTitle(newCat, newSubcat, periodYear, periodTerm);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -443,7 +498,11 @@ export function EditDocumentModal({
                 </label>
                 <select
                   value={subcategory}
-                  onChange={(e) => setSubcategory(e.target.value)}
+                  onChange={(e) => {
+                    const newSubcat = e.target.value;
+                    setSubcategory(newSubcat);
+                    autoUpdateTitle(category, newSubcat, periodYear, periodTerm);
+                  }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
                   {currentSubcategories.map((sub) => (
