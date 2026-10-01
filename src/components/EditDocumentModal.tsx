@@ -40,7 +40,7 @@ export function EditDocumentModal({
 
   const [title, setTitle] = useState(initialDoc.title);
   const [fileUrl, setFileUrl] = useState(initialDoc.fileUrl || "");
-  const [category, setCategory] = useState<"EXAMEN" | "LECCION" | "TALLER" | "CLASE">(initialDoc.category);
+  const [category, setCategory] = useState<"EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA">(initialDoc.category);
   const [subcategory, setSubcategory] = useState(initialDoc.subcategory);
   const [customSubcategory, setCustomSubcategory] = useState("");
   const [customDescription, setCustomDescription] = useState(initialDoc.customDescription || "");
@@ -130,11 +130,12 @@ export function EditDocumentModal({
     }
   }, [isOpen, initialDoc]);
 
-  const subcategoryOptions: Record<"EXAMEN" | "LECCION" | "TALLER" | "CLASE", string[]> = {
+  const subcategoryOptions: Record<"EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA", string[]> = {
     EXAMEN: ["Parcial", "Final", "Mejoramiento", "Otro"],
     LECCION: ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"],
-    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Tareas", "Ejercicios Extras", "Proyecto", "Otro"],
-    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Bibliografía", "Otro"],
+    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"],
+    TAREA: ["Tarea 1", "Tarea 2", "Tarea 3", "Tarea 4", "Tareas", "Ejercicios Extras", "Guía de Ejercicios", "Proyecto", "Otro"],
+    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Otro"],
   };
 
   const currentSubcategories = subcategoryOptions[category] || ["General", "Otro"];
@@ -397,7 +398,7 @@ export function EditDocumentModal({
                 <select
                   value={category}
                   onChange={(e) => {
-                    const newCat = e.target.value as "EXAMEN" | "LECCION" | "TALLER" | "CLASE";
+                    const newCat = e.target.value as "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA";
                     setCategory(newCat);
                     setSubcategory(subcategoryOptions[newCat]?.[0] || "General");
                   }}
@@ -405,7 +406,8 @@ export function EditDocumentModal({
                 >
                   <option value="EXAMEN">Exámenes</option>
                   <option value="LECCION">Lecciones</option>
-                  <option value="TALLER">Talleres y Tareas</option>
+                  <option value="TALLER">Talleres</option>
+                  <option value="TAREA">Tareas y Ejercicios</option>
                   <option value="CLASE">Clases y Apuntes</option>
                 </select>
               </div>

@@ -67,7 +67,8 @@ export async function GET(req: Request) {
     const categoryFolders: Record<string, string> = {
       EXAMEN: "Exámenes",
       LECCION: "Lecciones",
-      TALLER: "Talleres y Deberes",
+      TALLER: "Talleres",
+      TAREA: "Tareas y Ejercicios",
       CLASE: "Clases y Apuntes",
     };
 

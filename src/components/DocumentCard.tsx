@@ -35,7 +35,7 @@ export interface DocumentItem {
   mimeType: string;
   fileUrl: string;
   attachments?: AttachmentItem[] | null;
-  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   customDescription?: string | null;
   periodYear: number;

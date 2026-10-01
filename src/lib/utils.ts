@@ -21,7 +21,9 @@ export function getCategoryLabel(category: string): string {
     case "LECCION":
       return "Lecciones";
     case "TALLER":
-      return "Talleres y Tareas";
+      return "Talleres";
+    case "TAREA":
+      return "Tareas y Ejercicios";
     case "EXAMEN":
       return "Exámenes";
     default:
@@ -37,6 +39,8 @@ export function getCategoryBadgeColor(category: string): string {
       return "bg-amber-500/15 text-amber-400 border-amber-500/30";
     case "TALLER":
       return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+    case "TAREA":
+      return "bg-purple-500/15 text-purple-400 border-purple-500/30";
     case "EXAMEN":
       return "bg-rose-500/15 text-rose-400 border-rose-500/30";
     default:

@@ -20,6 +20,7 @@ enum DocumentCategory {
   LECCION
   TALLER
   EXAMEN
+  TAREA
 }
 
 enum SubmissionStatus {

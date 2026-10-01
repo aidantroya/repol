@@ -126,7 +126,7 @@ export async function POST(req: Request) {
       similarDoc = await prisma.document.findFirst({
         where: {
           subjectId: effectiveSubjectId,
-          category: effectiveCategory as "CLASE" | "LECCION" | "TALLER" | "EXAMEN",
+          category: effectiveCategory as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA",
           subcategory: effectiveSubcategory,
         },
         select: {

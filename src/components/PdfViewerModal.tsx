@@ -24,7 +24,7 @@ interface PdfViewerModalProps {
     fileUrl: string;
     fileSize: number;
     attachments?: AttachmentItem[] | null;
-    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
     subcategory: string;
     periodYear: number;
     periodTerm: string;

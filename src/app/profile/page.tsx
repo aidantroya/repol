@@ -22,7 +22,7 @@ interface UserSubmission {
   title: string;
   description?: string | null;
   fileSize: number;
-  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   customDescription?: string | null;
   periodYear: number;

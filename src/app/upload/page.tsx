@@ -68,7 +68,7 @@ export interface UploadQueueItem {
   description: string;
   careerId?: string;
   subjectId: string;
-  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   customDescription: string;
   periodYear: string;
@@ -102,7 +102,7 @@ export default function UploadPage() {
   // Materias y configuración global de lote
   const [careers, setCareers] = useState<Career[]>([]);
   const [globalSubjectId, setGlobalSubjectId] = useState("");
-  const [globalCategory, setGlobalCategory] = useState<"CLASE" | "LECCION" | "TALLER" | "EXAMEN">("EXAMEN");
+  const [globalCategory, setGlobalCategory] = useState<"CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA">("EXAMEN");
   const [globalSubcategory, setGlobalSubcategory] = useState("Parcial");
   const [globalYear, setGlobalYear] = useState(new Date().getFullYear().toString());
   const [globalPeriodTerm, setGlobalPeriodTerm] = useState("1PAO");
@@ -170,16 +170,18 @@ export default function UploadPage() {
   }, [allSubjectOptions]);
 
   // Función para obtener subcategorías dinámicas
-  const getSubcategoryOptions = (cat: "CLASE" | "LECCION" | "TALLER" | "EXAMEN") => {
+  const getSubcategoryOptions = (cat: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA") => {
     switch (cat) {
       case "LECCION":
         return ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"];
       case "TALLER":
-        return ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Tareas", "Ejercicios Extras", "Proyecto", "Otro"];
+        return ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"];
+      case "TAREA":
+        return ["Tarea 1", "Tarea 2", "Tarea 3", "Tarea 4", "Tareas", "Ejercicios Extras", "Guía de Ejercicios", "Proyecto", "Otro"];
       case "EXAMEN":
         return ["Parcial", "Final", "Mejoramiento"];
       case "CLASE":
-        return ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Bibliografía", "Otro"];
+        return ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Otro"];
       default:
         return ["Otro"];
     }
@@ -826,7 +828,7 @@ export default function UploadPage() {
             <select
               value={globalCategory}
               onChange={(e) => {
-                const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+                const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
                 setGlobalCategory(newCat);
                 const subOpts = getSubcategoryOptions(newCat);
                 setGlobalSubcategory(subOpts[0]);
@@ -835,7 +837,8 @@ export default function UploadPage() {
             >
               <option value="EXAMEN">Exámenes</option>
               <option value="LECCION">Lecciones</option>
-              <option value="TALLER">Talleres y Tareas</option>
+              <option value="TALLER">Talleres</option>
+              <option value="TAREA">Tareas y Ejercicios</option>
               <option value="CLASE">Clases y Apuntes</option>
             </select>
           </div>
@@ -1204,7 +1207,7 @@ export default function UploadPage() {
                           <select
                             value={item.category}
                             onChange={(e) => {
-                              const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+                              const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
                               const subOpts = getSubcategoryOptions(newCat);
                               updateQueueItem(item.id, {
                                 category: newCat,
@@ -1215,7 +1218,8 @@ export default function UploadPage() {
                           >
                             <option value="EXAMEN">Exámenes</option>
                             <option value="LECCION">Lecciones</option>
-                            <option value="TALLER">Talleres y Tareas</option>
+                            <option value="TALLER">Talleres</option>
+                            <option value="TAREA">Tareas y Ejercicios</option>
                             <option value="CLASE">Clases y Apuntes</option>
                           </select>
                         </div>

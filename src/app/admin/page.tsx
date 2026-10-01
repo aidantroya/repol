@@ -85,7 +85,7 @@ interface ReportItem {
     id: string;
     title: string;
     fileUrl: string;
-    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
     subcategory: string;
     periodYear: number;
     periodTerm: string;
@@ -113,7 +113,7 @@ interface Submission {
   mimeType: string;
   fileUrl: string;
   attachments?: Array<{ name: string; fileUrl: string; fileSize?: number; mimeType?: string }> | null;
-  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   customDescription?: string | null;
   periodYear: number;

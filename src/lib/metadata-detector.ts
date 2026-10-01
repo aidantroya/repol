@@ -24,7 +24,7 @@ export interface DetectedDocumentMetadata {
   subjectId?: string;
   subjectName?: string;
   subjectCode?: string;
-  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN";
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   periodYear: string; // "2024", "2025", "S/F"
   periodTerm: "1PAO" | "2PAO" | "PAE";
@@ -56,7 +56,7 @@ function normalizeString(str: string): string {
  */
 function detectCategoryAndSubcategory(
   combinedText: string
-): { category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN"; subcategory: string; detected: boolean } {
+): { category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA"; subcategory: string; detected: boolean } {
   const norm = normalizeString(combinedText);
 
   // 1. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / Evaluación Tercera / 3P
@@ -103,45 +103,56 @@ function detectCategoryAndSubcategory(
     return { category: "LECCION", subcategory: "Lección 1", detected: true };
   }
 
-  // 5. TALLER / TAREA / DEBER / PRÁCTICA / EJERCICIOS EXTRAS / PROYECTO
-  if (
-    /\b(?:taller|taller\s*#?|deber|tarea|tareas|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|proyecto|project|t1|t2|t3|t4)\b/.test(
-      norm
-    )
-  ) {
-    if (/\b(?:proyecto|project)\b/.test(norm)) {
-      return { category: "TALLER", subcategory: "Proyecto", detected: true };
-    }
-    if (/\b(?:ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|problemas\s+propuestos|problemas\s+resueltos)\b/.test(norm)) {
-      return { category: "TALLER", subcategory: "Ejercicios Extras", detected: true };
-    }
-    if (/\b(?:tarea|tareas|deber|deberes|homework|hw)\b/.test(norm)) {
-      return { category: "TALLER", subcategory: "Tareas", detected: true };
-    }
-    if (/\b(?:taller\s*4|taller\s*iv|t4|practica\s*4|lab\s*4)\b/.test(norm)) {
+  // 5. TALLERES (Taller 1, 2, 3, 4)
+  if (/\b(?:taller|taller\s*#?|t1|t2|t3|t4)\b/.test(norm)) {
+    if (/\b(?:taller\s*4|taller\s*iv|t4)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 4", detected: true };
     }
-    if (/\b(?:taller\s*3|taller\s*iii|t3|practica\s*3|lab\s*3)\b/.test(norm)) {
+    if (/\b(?:taller\s*3|taller\s*iii|t3)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 3", detected: true };
     }
-    if (/\b(?:taller\s*2|taller\s*ii|t2|practica\s*2|lab\s*2)\b/.test(norm)) {
+    if (/\b(?:taller\s*2|taller\s*ii|t2)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 2", detected: true };
     }
-    if (/\b(?:taller\s*1|taller\s*i|t1|practica\s*1|lab\s*1)\b/.test(norm)) {
+    if (/\b(?:taller\s*1|taller\s*i|t1)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
     return { category: "TALLER", subcategory: "Taller 1", detected: true };
   }
 
-  // 6. MATERIAL DE CLASE (Diapositivas, Apuntes, Guías, Bibliografía)
+  // 6. TAREAS Y EJERCICIOS (Tarea 1, 2, 3, 4, Deberes, Ejercicios Extras, Proyecto)
+  if (
+    /\b(?:tarea|tareas|deber|deberes|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|proyecto|project)\b/.test(
+      norm
+    )
+  ) {
+    if (/\b(?:proyecto|project)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Proyecto", detected: true };
+    }
+    if (/\b(?:ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|problemas\s+propuestos|problemas\s+resueltos)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Ejercicios Extras", detected: true };
+    }
+    if (/\b(?:tarea\s*4|deber\s*4|hw\s*4)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Tarea 4", detected: true };
+    }
+    if (/\b(?:tarea\s*3|deber\s*3|hw\s*3)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Tarea 3", detected: true };
+    }
+    if (/\b(?:tarea\s*2|deber\s*2|hw\s*2)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Tarea 2", detected: true };
+    }
+    if (/\b(?:tarea\s*1|deber\s*1|hw\s*1)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Tarea 1", detected: true };
+    }
+    return { category: "TAREA", subcategory: "Tareas", detected: true };
+  }
+
+  // 7. CLASES Y APUNTES (Diapositivas, Apuntes de Clase, Guía Teórica)
   if (/\b(?:diapositiva|diapositivas|slide|slides|presentacion|ppt|powerpoint)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Diapositivas", detected: true };
   }
   if (/\b(?:guia|syllabus|silabo|formulario|formulario\s+oficial)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Guía Teórica", detected: true };
-  }
-  if (/\b(?:bibliografia|libro|libros|textbook|referencia)\b/.test(norm)) {
-    return { category: "CLASE", subcategory: "Bibliografía", detected: true };
   }
   if (/\b(?:apuntes|notas|clase|resumen|teoria|resumenes)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Apuntes de Clase", detected: true };
