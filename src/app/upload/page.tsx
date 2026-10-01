@@ -21,11 +21,13 @@ import {
   ChevronUp,
   FileCode,
   CheckSquare,
-  Square
+  Square,
+  Eye
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
 import { detectDocumentMetadata, DetectedDocumentMetadata, SubjectOption } from "@/lib/metadata-detector";
+import { PdfViewerModal } from "@/components/PdfViewerModal";
 
 interface DriveFolderChildItem {
   fileId: string;
@@ -124,6 +126,70 @@ export default function UploadPage() {
   const [activeDriveAttachmentItemId, setActiveDriveAttachmentItemId] = useState<string | null>(null);
   const [attDriveUrl, setAttDriveUrl] = useState("");
   const [attDriveName, setAttDriveName] = useState("");
+
+  // Estado para previsualizar documento antes de subir
+  const [previewDoc, setPreviewDoc] = useState<{
+    id: string;
+    title: string;
+    description?: string | null;
+    customDescription?: string | null;
+    fileUrl: string;
+    fileSize: number;
+    category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
+    subcategory: string;
+    periodYear: number;
+    periodTerm: string;
+    subject: { name: string; code: string };
+    blobUrlToRevoke?: string;
+  } | null>(null);
+
+  const handlePreviewItem = (item: UploadQueueItem) => {
+    const subject = allSubjectOptions.find((s) => s.value === item.subjectId);
+    const subjectObj = {
+      name: subject?.label || "Materia",
+      code: subject?.badge || "",
+    };
+
+    if (item.mode === "FILE" && item.file) {
+      const blobUrl = URL.createObjectURL(item.file);
+      setPreviewDoc({
+        id: item.id,
+        title: item.title || item.file.name,
+        description: item.description,
+        customDescription: item.customDescription,
+        fileUrl: blobUrl,
+        fileSize: item.file.size,
+        category: item.category,
+        subcategory: item.subcategory,
+        periodYear: parseInt(item.periodYear) || new Date().getFullYear(),
+        periodTerm: item.periodTerm,
+        subject: subjectObj,
+        blobUrlToRevoke: blobUrl,
+      });
+    } else if (item.mode === "GDRIVE" && (item.driveVerifiedData?.fileUrl || item.driveUrl)) {
+      const fileUrl = item.driveVerifiedData?.fileUrl || item.driveUrl || "";
+      setPreviewDoc({
+        id: item.id,
+        title: item.title || "Documento de Google Drive",
+        description: item.description,
+        customDescription: item.customDescription,
+        fileUrl: fileUrl,
+        fileSize: item.driveVerifiedData?.fileSize || 0,
+        category: item.category,
+        subcategory: item.subcategory,
+        periodYear: parseInt(item.periodYear) || new Date().getFullYear(),
+        periodTerm: item.periodTerm,
+        subject: subjectObj,
+      });
+    }
+  };
+
+  const handleClosePreview = () => {
+    if (previewDoc?.blobUrlToRevoke) {
+      URL.revokeObjectURL(previewDoc.blobUrlToRevoke);
+    }
+    setPreviewDoc(null);
+  };
 
   // Cargar lista de carreras y consolidar materias
   useEffect(() => {
@@ -1138,6 +1204,17 @@ export default function UploadPage() {
                         </span>
                       )}
 
+                      {/* Botón Ver Documento / Ver Enlace */}
+                      <button
+                        type="button"
+                        onClick={() => handlePreviewItem(item)}
+                        className="flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-xs font-semibold text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 transition shrink-0 active:scale-95"
+                        title={item.mode === "GDRIVE" ? "Ver enlace o previsualizar documento de Drive" : "Ver contenido del documento"}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">{item.mode === "GDRIVE" ? "Ver enlace" : "Ver documento"}</span>
+                      </button>
+
                       {/* Botón Desplegar / Colapsar */}
                       <button
                         onClick={() => updateQueueItem(item.id, { isExpanded: !item.isExpanded })}
@@ -1512,6 +1589,13 @@ export default function UploadPage() {
           </p>
         </div>
       </div>
+
+      {/* Modal de Previsualización de Documentos / Enlaces */}
+      <PdfViewerModal
+        isOpen={Boolean(previewDoc)}
+        onClose={handleClosePreview}
+        document={previewDoc}
+      />
 
     </div>
   );
