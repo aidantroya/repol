@@ -12,8 +12,12 @@ export async function POST(req: Request) {
     let subjectId = "";
     let category = "";
     let subcategory = "";
+    let title = "";
+    let periodYear = "";
+    let periodTerm = "";
     let filename = "";
     let rawExtractedText = "";
+    let checkTitleOnly = false;
 
     // Cargar catálogo de materias para detección
     const allSubjects = await prisma.subject.findMany({
@@ -26,6 +30,9 @@ export async function POST(req: Request) {
       subjectId = (formData.get("subjectId") as string) || "";
       category = (formData.get("category") as string) || "";
       subcategory = (formData.get("subcategory") as string) || "";
+      title = (formData.get("title") as string) || "";
+      periodYear = (formData.get("periodYear") as string) || "";
+      periodTerm = (formData.get("periodTerm") as string) || "";
 
       if (!file) {
         return NextResponse.json({ error: "No se proporcionó ningún archivo" }, { status: 400 });
@@ -40,23 +47,130 @@ export async function POST(req: Request) {
       rawExtractedText = fp.rawText || "";
     } else {
       const body = await req.json();
-      fileHash = body.fileHash;
-      semanticHash = body.semanticHash || body.fileHash;
-      subjectId = body.subjectId;
-      category = body.category;
-      subcategory = body.subcategory;
+      fileHash = body.fileHash || "";
+      semanticHash = body.semanticHash || body.fileHash || "";
+      subjectId = body.subjectId || "";
+      category = body.category || "";
+      subcategory = body.subcategory || "";
+      title = body.title || "";
+      periodYear = body.periodYear || "";
+      periodTerm = body.periodTerm || "";
       filename = body.filename || "";
       rawExtractedText = body.rawText || "";
+      checkTitleOnly = Boolean(body.checkTitleOnly);
+    }
+
+    // Ejecutar detector inteligente de metadatos si hay archivo o texto
+    const detectedMetadata = filename
+      ? detectDocumentMetadata(filename, rawExtractedText, allSubjects)
+      : null;
+
+    const effectiveSubjectId = subjectId || detectedMetadata?.subjectId || "";
+    const effectiveCategory = category || detectedMetadata?.category || "";
+    const effectiveSubcategory = subcategory || detectedMetadata?.subcategory || "";
+    const effectiveTitle = title || detectedMetadata?.suggestedTitle || "";
+    const effectiveYearNum = parseInt(periodYear || detectedMetadata?.periodYear || "0", 10) || 0;
+    const effectiveTerm = periodTerm || detectedMetadata?.periodTerm || "";
+
+    // Función auxiliar para verificar si ya existe un examen por nombre / periodo en la misma materia
+    async function checkExamDuplicateByName() {
+      if (effectiveCategory !== "EXAMEN" || !effectiveSubjectId) {
+        return null;
+      }
+
+      const orConditions: Array<{
+        title?: { equals: string; mode: "insensitive" };
+        subcategory?: string;
+        periodYear?: number;
+        periodTerm?: string;
+      }> = [];
+
+      if (effectiveTitle.trim().length >= 3) {
+        orConditions.push({ title: { equals: effectiveTitle.trim(), mode: "insensitive" } });
+      }
+
+      if (effectiveYearNum > 0 && effectiveTerm && effectiveSubcategory) {
+        orConditions.push({
+          subcategory: effectiveSubcategory,
+          periodYear: effectiveYearNum,
+          periodTerm: effectiveTerm,
+        });
+      }
+
+      if (orConditions.length === 0) return null;
+
+      // 1. Buscar en documentos publicados
+      const existingExamDoc = await prisma.document.findFirst({
+        where: {
+          subjectId: effectiveSubjectId,
+          category: "EXAMEN",
+          OR: orConditions,
+        },
+        select: {
+          id: true,
+          title: true,
+          subcategory: true,
+          periodYear: true,
+          periodTerm: true,
+        },
+      });
+
+      if (existingExamDoc) {
+        return {
+          exists: true,
+          title: existingExamDoc.title,
+          subcategory: existingExamDoc.subcategory,
+          periodYear: existingExamDoc.periodYear,
+          periodTerm: existingExamDoc.periodTerm,
+          isPending: false,
+          message: `Ya existe un examen publicado con este título/periodo ("${existingExamDoc.title}") en esta materia. Revisa si este archivo ya se encuentra en RePol o si el nombre generado debe ajustarse.`,
+        };
+      }
+
+      // 2. Buscar en solicitudes de subida pendientes
+      const pendingExamDoc = await prisma.submission.findFirst({
+        where: {
+          subjectId: effectiveSubjectId,
+          category: "EXAMEN",
+          status: "PENDING",
+          OR: orConditions,
+        },
+        select: {
+          id: true,
+          title: true,
+          subcategory: true,
+          periodYear: true,
+          periodTerm: true,
+        },
+      });
+
+      if (pendingExamDoc) {
+        return {
+          exists: true,
+          title: pendingExamDoc.title,
+          subcategory: pendingExamDoc.subcategory,
+          periodYear: pendingExamDoc.periodYear,
+          periodTerm: pendingExamDoc.periodTerm,
+          isPending: true,
+          message: `Existe un examen enviado en revisión con este título/periodo ("${pendingExamDoc.title}") en esta materia.`,
+        };
+      }
+
+      return null;
+    }
+
+    // Si es solo una verificación ligera en tiempo real de título para exámenes
+    if (checkTitleOnly) {
+      const possibleExamDuplicate = await checkExamDuplicateByName();
+      return NextResponse.json({
+        exists: false,
+        possibleExamDuplicate,
+      });
     }
 
     if (!fileHash) {
       return NextResponse.json({ error: "El hash SHA-256 es requerido" }, { status: 400 });
     }
-
-    // Ejecutar detector inteligente de metadatos
-    const detectedMetadata = filename
-      ? detectDocumentMetadata(filename, rawExtractedText, allSubjects)
-      : null;
 
     const hashesToCheck = Array.from(new Set([fileHash, semanticHash].filter(Boolean)));
 
@@ -116,37 +230,14 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3. Advertencia suave si existe un documento similar por metadatos
-    let similarDoc = null;
-    const effectiveSubjectId = detectedMetadata?.subjectId || subjectId;
-    const effectiveCategory = detectedMetadata?.category || category;
-    const effectiveSubcategory = detectedMetadata?.subcategory || subcategory;
-
-    if (effectiveSubjectId && effectiveCategory && effectiveSubcategory) {
-      similarDoc = await prisma.document.findFirst({
-        where: {
-          subjectId: effectiveSubjectId,
-          category: effectiveCategory as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA",
-          subcategory: effectiveSubcategory,
-        },
-        select: {
-          title: true,
-          periodYear: true,
-          periodTerm: true,
-        },
-      });
-    }
+    // 3. Verificación especial de examen duplicado por nombre/periodo (solo para exámenes)
+    const possibleExamDuplicate = await checkExamDuplicateByName();
 
     return NextResponse.json({
       exists: false,
       fileHash,
       detectedMetadata,
-      similar: similarDoc
-        ? {
-            title: similarDoc.title,
-            period: `${similarDoc.periodYear > 0 ? similarDoc.periodYear : "S/F"} - ${similarDoc.periodTerm}`,
-          }
-        : null,
+      possibleExamDuplicate,
     });
   } catch (error) {
     console.error("Error checking duplicate:", error);

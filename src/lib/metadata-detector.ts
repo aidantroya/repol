@@ -128,16 +128,16 @@ function detectCategoryAndSubcategory(
 
   // 1. LECCIÓN (1, 2, 3, 4, etc.) - Evaluado primero para evitar colisión con 'evaluación' genérica
   if (/\b(?:leccion|lecc|lec|quiz|control\s+de\s+lectura|l\s*1|l\s*2|l\s*3|l\s*4)\b/.test(norm)) {
-    if (/\b(?:leccion\s*4|leccion\s*iv|lec\s*4|l\s*4|quiz\s*4|cuarta\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*4|leccion\s*iv|lec\s*4|l\s*4|quiz\s*4|cuarta\s+leccion|4\s*ta\s+leccion|4\s*ra\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 4", detected: true };
     }
-    if (/\b(?:leccion\s*3|leccion\s*iii|lec\s*3|l\s*3|quiz\s*3|tercera\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*3|leccion\s*iii|lec\s*3|l\s*3|quiz\s*3|tercera\s+leccion|3\s*ra\s+leccion|3\s*era\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 3", detected: true };
     }
-    if (/\b(?:leccion\s*2|leccion\s*ii|lec\s*2|l\s*2|quiz\s*2|segunda\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*2|leccion\s*ii|lec\s*2|l\s*2|quiz\s*2|segunda\s+leccion|2\s*da\s+leccion|2\s*nda\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 2", detected: true };
     }
-    if (/\b(?:leccion\s*1|leccion\s*i|lec\s*1|l\s*1|quiz\s*1|primera\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*1|leccion\s*i|lec\s*1|l\s*1|quiz\s*1|primera\s+leccion|1\s*ra\s+leccion|1\s*era\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 1", detected: true };
     }
     return { category: "LECCION", subcategory: "Lección 1", detected: true };
@@ -145,16 +145,16 @@ function detectCategoryAndSubcategory(
 
   // 2. TALLERES (Taller 1, 2, 3, 4)
   if (/\b(?:taller|tall|workshop|t\s*1|t\s*2|t\s*3|t\s*4)\b/.test(norm)) {
-    if (/\b(?:taller\s*4|taller\s*iv|tall\s*4|t\s*4|cuarto\s+taller)\b/.test(norm)) {
+    if (/\b(?:taller\s*4|taller\s*iv|tall\s*4|t\s*4|cuarto\s+taller|4\s*to\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 4", detected: true };
     }
-    if (/\b(?:taller\s*3|taller\s*iii|tall\s*3|t\s*3|tercer\s+taller)\b/.test(norm)) {
+    if (/\b(?:taller\s*3|taller\s*iii|tall\s*3|t\s*3|tercer\s+taller|3\s*er\s+taller|3\s*ra\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 3", detected: true };
     }
-    if (/\b(?:taller\s*2|taller\s*ii|tall\s*2|t\s*2|segundo\s+taller)\b/.test(norm)) {
+    if (/\b(?:taller\s*2|taller\s*ii|tall\s*2|t\s*2|segundo\s+taller|2\s*do\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 2", detected: true };
     }
-    if (/\b(?:taller\s*1|taller\s*i|tall\s*1|t\s*1|primer\s+taller)\b/.test(norm)) {
+    if (/\b(?:taller\s*1|taller\s*i|tall\s*1|t\s*1|primer\s+taller|1\s*er\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
     return { category: "TALLER", subcategory: "Taller 1", detected: true };
@@ -177,7 +177,7 @@ function detectCategoryAndSubcategory(
 
   // 4. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / Evaluación Tercera / 3P
   if (
-    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|evaluacion\s+tercera|evaluacion\s*3|evaluacion\s+iii|eval\s*3|eval\s+iii|3\s*ra\s+evaluacion|3\s*era\s+evaluacion|3\s*ra\s+eval|3\s*p|3\s*er\s+parcial|tercer\s+parcial|evaluacion\s+de\s+mejoramiento|evaluacion\s+de\s+gracia)\b/.test(
+    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|evaluacion\s+tercera|evaluacion\s*3|evaluacion\s+iii|eval\s*3|eval\s+iii|3\s*ra\s+evaluacion|3\s*era\s+evaluacion|3\s*ra\s+eval|3\s*p|3\s*er\s+parcial|tercer\s+parcial|evaluacion\s+de\s+mejoramiento|evaluacion\s+de\s+gracia|examen\s+de\s+tercera\s+evaluacion|examen\s+de\s+mejoramiento)\b/.test(
       norm
     )
   ) {
@@ -186,7 +186,7 @@ function detectCategoryAndSubcategory(
 
   // 5. EXAMEN - Final / 2da Evaluación / Evaluación Segunda / 2P
   if (
-    /\b(?:final|examen\s+final|evaluacion\s+final|segunda\s+evaluacion|evaluacion\s+segunda|evaluacion\s*2|evaluacion\s+ii|eval\s*2|eval\s+ii|2\s*da\s+evaluacion|2\s*da\s+eval|2\s*p|2\s*do\s+parcial|segundo\s+parcial)\b/.test(
+    /\b(?:final|examen\s+final|evaluacion\s+final|segunda\s+evaluacion|evaluacion\s+segunda|evaluacion\s*2|evaluacion\s+ii|eval\s*2|eval\s+ii|2\s*da\s+evaluacion|2\s*da\s+eval|2\s*p|2\s*do\s+parcial|segundo\s+parcial|examen\s+de\s+segunda\s+evaluacion|segundo\s+examen)\b/.test(
       norm
     )
   ) {
@@ -195,7 +195,7 @@ function detectCategoryAndSubcategory(
 
   // 6. EXAMEN - Parcial / 1ra Evaluación / Evaluación Primera / 1P
   if (
-    /\b(?:parcial|primer\s+parcial|1\s*er\s+parcial|primera\s+evaluacion|evaluacion\s+primera|evaluacion\s*1|evaluacion\s+i|eval\s*1|eval\s+i|1\s*ra\s+evaluacion|1\s*era\s+evaluacion|1\s*ra\s+eval|1\s*p|examen\s+parcial|evaluacion\s+parcial|examen|evaluacion)\b/.test(
+    /\b(?:parcial|primer\s+parcial|1\s*er\s+parcial|primera\s+evaluacion|evaluacion\s+primera|evaluacion\s*1|evaluacion\s+i|eval\s*1|eval\s+i|1\s*ra\s+evaluacion|1\s*era\s+evaluacion|1\s*ra\s+eval|1\s*p|examen\s+parcial|evaluacion\s+parcial|examen|evaluacion|examen\s+de\s+primera\s+evaluacion|primer\s+examen)\b/.test(
       norm
     )
   ) {
@@ -223,28 +223,35 @@ function detectCategoryAndSubcategory(
 function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" | "PAE"; detected: boolean } {
   const norm = normalizeString(combinedText);
 
-  // 1. Detección directa por nombres de términos
-  // PAE (Extraordinario / Intensivo / Verano / 3T)
-  if (/\b(?:pae|intensivo|extraordinario|verano|3\s*t|iii\s*t|3\s*er\s*termino|tercer\s*termino)\b/.test(norm)) {
+  // 1. Detección directa por nombres de términos oficiales ESPOL
+  // PAE (Extraordinario / Intensivo / Verano / 3T / III PAO)
+  if (
+    /\b(?:pae|pao\s*(?:3|iii|tres)|3\s*pao|iii\s*pao|intensivo|extraordinario|verano|3\s*t|iii\s*t|t\s*3|t\s*iii|3\s*er\s*termino|tercer\s*termino|iii\s*termino|tercer\s*pao|3\s*er\s*pao|tercer\s*periodo)\b/.test(
+      norm
+    ) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:3|iii|pae|3t)\b/i.test(combinedText)
+  ) {
     return { term: "PAE", detected: true };
   }
 
-  // 1PAO (I Término / 1T / 1er Término)
+  // 2PAO (II Término / 2T / 2do Término / II PAO / PAO 2 / PAO II)
   if (
-    /\b(?:1\s*pao|i\s*pao|1\s*t|1\s*termino|1\s*er\s*termino|primer\s*termino|i\s*termino)\b/.test(
+    /\b(?:2\s*pao|ii\s*pao|pao\s*(?:2|ii|dos)|2\s*t|ii\s*t|t\s*2|t\s*ii|2\s*termino|2\s*do\s*termino|segundo\s*termino|ii\s*termino|segundo\s*pao|2\s*do\s*pao|2\s*da\s*pao|2\s*s|2\s*do\s*semestre|segundo\s*semestre|termino\s*(?:2|ii)|segundo\s*periodo|ii\s*periodo)\b/.test(
       norm
-    )
-  ) {
-    return { term: "1PAO", detected: true };
-  }
-
-  // 2PAO (II Término / 2T / 2do Término)
-  if (
-    /\b(?:2\s*pao|ii\s*pao|2\s*t|2\s*termino|2\s*do\s*termino|segundo\s*termino|ii\s*termino)\b/.test(
-      norm
-    )
+    ) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText)
   ) {
     return { term: "2PAO", detected: true };
+  }
+
+  // 1PAO (I Término / 1T / 1er Término / I PAO / PAO 1 / PAO I)
+  if (
+    /\b(?:1\s*pao|i\s*pao|pao\s*(?:1|i|uno)|1\s*t|i\s*t|t\s*1|t\s*i|1\s*termino|1\s*er\s*termino|primer\s*termino|i\s*termino|primer\s*pao|1\s*er\s*pao|1\s*era\s*pao|1\s*s|1\s*er\s*semestre|primer\s*semestre|termino\s*(?:1|i)|primer\s*periodo|i\s*periodo)\b/.test(
+      norm
+    ) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:1|i|1pao|1t)\b/i.test(combinedText)
+  ) {
+    return { term: "1PAO", detected: true };
   }
 
   // 2. Detección por meses del calendario académico ESPOL
@@ -263,7 +270,7 @@ function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" | "PAE"
     return { term: "2PAO", detected: true };
   }
 
-  // Detección por fecha numérica DD/MM/YYYY o YYYY-MM-DD
+  // 3. Detección por fecha numérica DD/MM/YYYY o YYYY-MM-DD
   const dateNumMatch = combinedText.match(/(?:[0-3]?\d[\/\-\.]([0-1]?\d)[\/\-\.](?:19|20)\d\d)|(?:(?:19|20)\d\d[\/\-\.]([0-1]?\d)[\/\-\.][0-3]?\d)/);
   if (dateNumMatch) {
     const monthNum = parseInt(dateNumMatch[1] || dateNumMatch[2], 10);
@@ -288,7 +295,16 @@ function detectPeriodYear(
     return { year: String(firstYear), detected: true };
   }
 
-  // 2. Años de 4 dígitos entre 1990 y 2035
+  // 2. Coincidencias específicas cercanas a palabras clave de encabezado ESPOL
+  const headerYearMatch = combinedText.match(/\b(?:periodo|ano|año|fecha|pao)\s*(?:y\s*(?:ano|año))?\s*[:\s\-]*.*?\b(19\d\d|20[0-3]\d)\b/i);
+  if (headerYearMatch) {
+    const y = parseInt(headerYearMatch[1], 10);
+    if (y >= 1995 && y <= new Date().getFullYear() + 2) {
+      return { year: String(y), detected: true };
+    }
+  }
+
+  // 3. Años de 4 dígitos entre 1990 y 2035
   const yearMatches = Array.from(combinedText.matchAll(/\b(199\d|20[0-3]\d)\b/g)).map((m) => parseInt(m[1], 10));
 
   if (yearMatches.length > 0) {

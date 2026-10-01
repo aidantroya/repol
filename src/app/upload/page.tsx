@@ -83,6 +83,13 @@ export interface UploadQueueItem {
     type?: string;
     message?: string;
   } | null;
+  possibleExamDuplicate?: {
+    exists: boolean;
+    title?: string;
+    period?: string;
+    isPending?: boolean;
+    message?: string;
+  } | null;
   driveVerifiedData?: {
     fileId: string;
     fileHash: string;
@@ -268,6 +275,88 @@ export default function UploadPage() {
     }
   };
 
+  // Clave serializada para ejecutar la verificación de exámenes solo cuando cambien propiedades relevantes
+  const examCheckKey = useMemo(() => {
+    return queue
+      .map((q) => `${q.id}:${q.category}:${q.subjectId}:${q.title}:${q.subcategory}:${q.periodYear}:${q.periodTerm}`)
+      .join("|");
+  }, [queue]);
+
+  // Verificación en tiempo real de duplicados de exámenes por nombre / periodo
+  useEffect(() => {
+    const examItems = queue.filter(
+      (item) => item.category === "EXAMEN" && item.subjectId && item.title && item.title.trim().length >= 3
+    );
+
+    if (examItems.length === 0) return;
+
+    const timer = setTimeout(async () => {
+      for (const item of examItems) {
+        // 1. Duplicado en la misma cola local
+        const inQueueDup = queue.find(
+          (q) =>
+            q.id !== item.id &&
+            q.category === "EXAMEN" &&
+            q.subjectId === item.subjectId &&
+            q.title.trim().toLowerCase() === item.title.trim().toLowerCase()
+        );
+
+        if (inQueueDup) {
+          setQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    possibleExamDuplicate: {
+                      exists: true,
+                      title: inQueueDup.title,
+                      message: `Tienes otro examen con el mismo nombre ("${inQueueDup.title}") en esta misma cola de subida para esta materia.`,
+                    },
+                  }
+                : q
+            )
+          );
+          continue;
+        }
+
+        // 2. Duplicado en la base de datos de RePol
+        try {
+          const res = await fetch("/api/documents/check-duplicate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              checkTitleOnly: true,
+              subjectId: item.subjectId,
+              category: "EXAMEN",
+              subcategory: item.subcategory,
+              title: item.title,
+              periodYear: item.periodYear,
+              periodTerm: item.periodTerm,
+            }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setQueue((prev) =>
+              prev.map((q) =>
+                q.id === item.id
+                  ? {
+                      ...q,
+                      possibleExamDuplicate: data.possibleExamDuplicate || null,
+                    }
+                  : q
+              )
+            );
+          }
+        } catch (e) {
+          console.warn("Error al verificar duplicado de examen por nombre:", e);
+        }
+      }
+    }, 450);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examCheckKey]);
+
   // Procesar archivos locales soltados o seleccionados
   const handleAddLocalFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -306,6 +395,7 @@ export default function UploadPage() {
         fileHash: "",
         isHashing: true,
         duplicateCheck: null,
+        possibleExamDuplicate: null,
         attachments: [],
         status: "idle",
         isExpanded: true,
@@ -325,6 +415,9 @@ export default function UploadPage() {
           formData.append("subjectId", item.subjectId);
           formData.append("category", item.category);
           formData.append("subcategory", item.subcategory);
+          formData.append("title", item.title);
+          formData.append("periodYear", item.periodYear);
+          formData.append("periodTerm", item.periodTerm);
 
           const res = await fetch("/api/documents/check-duplicate", {
             method: "POST",
@@ -375,6 +468,7 @@ export default function UploadPage() {
                     : dupRes.exists
                     ? { exists: true, type: dupRes.type, message: dupRes.message }
                     : { exists: false },
+                  possibleExamDuplicate: dupRes.possibleExamDuplicate || null,
                 };
               });
             });
@@ -480,6 +574,7 @@ export default function UploadPage() {
             duplicateCheck: item.exists
               ? { exists: true, message: item.duplicateMessage || "Documento duplicado detectado" }
               : { exists: false },
+            possibleExamDuplicate: null,
             driveVerifiedData: {
               fileId: item.fileId,
               fileHash: item.fileHash,
@@ -526,6 +621,7 @@ export default function UploadPage() {
         duplicateCheck: data.exists
           ? { exists: true, type: data.type, message: data.message }
           : { exists: false },
+        possibleExamDuplicate: data.possibleExamDuplicate || null,
         driveVerifiedData: data,
         attachments: [],
         status: "idle",
@@ -1183,6 +1279,11 @@ export default function UploadPage() {
                           <AlertTriangle className="h-3.5 w-3.5" />
                           <span>Duplicado</span>
                         </span>
+                      ) : !item.duplicateCheck?.exists && item.possibleExamDuplicate?.exists && item.category === "EXAMEN" ? (
+                        <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-400 border border-amber-500/20" title="Posible examen duplicado por nombre o periodo en esta materia">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>Posible Duplicado</span>
+                        </span>
                       ) : item.fileHash ? (
                         <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">
                           <FileCheck className="h-3.5 w-3.5" />
@@ -1237,7 +1338,7 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  {/* Alerta explícita de Documento Duplicado */}
+                  {/* Alerta explícita de Documento Duplicado por Hash */}
                   {item.duplicateCheck?.exists && (
                     <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 animate-in fade-in duration-150">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
@@ -1247,6 +1348,21 @@ export default function UploadPage() {
                         </div>
                         <p className="text-[11px] text-rose-300/90 leading-relaxed">
                           {item.duplicateCheck.message || "El contenido de este archivo coincide exactamente con un documento ya existente en el repositorio o en moderación."}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alerta de Posible Examen Duplicado por Nombre / Periodo (Solo para exámenes) */}
+                  {!item.duplicateCheck?.exists && item.possibleExamDuplicate?.exists && item.category === "EXAMEN" && (
+                    <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-200 animate-in fade-in duration-150">
+                      <AlertTriangle className="h-4 w-4 shrink-0 text-amber-400 mt-0.5" />
+                      <div className="space-y-0.5">
+                        <div className="font-bold text-amber-300">
+                          Este documento probablemente ya exista en la plataforma
+                        </div>
+                        <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                          {item.possibleExamDuplicate.message || `Ya existe un examen registrado con el título/periodo "${item.possibleExamDuplicate.title || item.title}" en la materia seleccionada. Por favor revisa si se trata de un error del sistema al detectar el nombre o si verídicamente ya existe como tal en RePol.`}
                         </p>
                       </div>
                     </div>
