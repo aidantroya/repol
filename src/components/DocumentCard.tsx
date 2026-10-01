@@ -42,7 +42,9 @@ export interface DocumentItem {
   periodTerm: string;
   downloadCount: number;
   createdAt: string | Date;
+  subjectId?: string;
   subject: {
+    id?: string;
     name: string;
     code: string;
     careers?: Array<{

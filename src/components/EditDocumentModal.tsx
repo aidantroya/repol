@@ -48,7 +48,9 @@ export function EditDocumentModal({
     typeof initialDoc.periodYear === "number" ? initialDoc.periodYear : (parseInt(String(initialDoc.periodYear), 10) || 0)
   );
   const [periodTerm, setPeriodTerm] = useState<string>(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
-  const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
+    initialDoc.subjectId || initialDoc.subject?.id || ""
+  );
 
   // Anexos
   const [attachments, setAttachments] = useState<AttachmentItem[]>(
@@ -68,6 +70,28 @@ export function EditDocumentModal({
     setMounted(true);
   }, []);
 
+  // Función para resolver el ID exacto de la materia sin falsos positivos por nombres duplicados
+  const resolveSubjectId = (options: SearchableOption[], doc: DocumentItem): string => {
+    const directId = doc.subjectId || doc.subject?.id;
+    if (directId && options.some((o) => o.value === directId)) {
+      return directId;
+    }
+
+    const targetCode = doc.subject?.code?.trim().toUpperCase();
+    if (targetCode) {
+      const byCode = options.find((o) => o.badge?.trim().toUpperCase() === targetCode);
+      if (byCode) return byCode.value;
+    }
+
+    const targetName = doc.subject?.name?.trim().toLowerCase();
+    if (targetName) {
+      const byName = options.find((o) => o.label.trim().toLowerCase() === targetName);
+      if (byName) return byName.value;
+    }
+
+    return directId || "";
+  };
+
   // Cargar lista de materias
   useEffect(() => {
     async function loadSubjects() {
@@ -78,7 +102,6 @@ export function EditDocumentModal({
         const data = await res.json();
         if (data.careers) {
           const map = new Map<string, SearchableOption>();
-          let currentSubjId = "";
           for (const car of data.careers) {
             for (const sub of car.subjects) {
               if (!map.has(sub.id)) {
@@ -88,15 +111,15 @@ export function EditDocumentModal({
                   badge: sub.code,
                 });
               }
-              if (sub.code === initialDoc.subject?.code || sub.name === initialDoc.subject?.name) {
-                currentSubjId = sub.id;
-              }
             }
           }
           const options = Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
           setSubjectOptions(options);
-          if (currentSubjId) {
-            setSelectedSubjectId(currentSubjId);
+
+          // Resolver con prioridad exacta de ID -> Código -> Nombre
+          const resolved = resolveSubjectId(options, initialDoc);
+          if (resolved) {
+            setSelectedSubjectId(resolved);
           }
         }
       } catch (e) {
@@ -106,7 +129,7 @@ export function EditDocumentModal({
       }
     }
     loadSubjects();
-  }, [isOpen, initialDoc.subject]);
+  }, [isOpen, initialDoc]);
 
   // Sincronizar estado cuando cambia el documento o se abre el modal
   useEffect(() => {
@@ -121,6 +144,7 @@ export function EditDocumentModal({
         : (parseInt(String(initialDoc.periodYear), 10) || 0);
       setPeriodYear(parsedInitialYear);
       setPeriodTerm(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
+      setSelectedSubjectId(initialDoc.subjectId || initialDoc.subject?.id || "");
       setAttachments(Array.isArray(initialDoc.attachments) ? [...initialDoc.attachments] : []);
       setShowAddAttachment(false);
       setNewAttName("");
