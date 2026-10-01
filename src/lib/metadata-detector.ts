@@ -437,20 +437,21 @@ export function detectDocumentMetadata(
   const fileYear = detectPeriodYear(cleanFilename);
   const fileSubject = detectSubject(cleanFilename, subjects);
 
-  // Etapa 2: Análisis del encabezado (document text) si algo no se detectó con certeza en el nombre
-  const docCategory = !fileCategory.detected && headerSample ? detectCategoryAndSubcategory(headerSample) : fileCategory;
-  const docTerm = !fileTerm.detected && headerSample ? detectPeriodTerm(headerSample) : fileTerm;
-  const docYear = !fileYear.detected && headerSample ? detectPeriodYear(headerSample) : fileYear;
-  const docSubject = !fileSubject.detected && headerSample ? detectSubject(headerSample, subjects) : fileSubject;
+  // Etapa 2: Análisis del encabezado / texto del documento
+  const docCategory = headerSample ? detectCategoryAndSubcategory(headerSample) : { category: "EXAMEN" as const, subcategory: "Parcial", detected: false };
+  const docTerm = headerSample ? detectPeriodTerm(headerSample) : { term: "1PAO" as const, detected: false };
+  const docYear = headerSample ? detectPeriodYear(headerSample) : { year: "S/F", detected: false };
+  const docSubject = headerSample ? detectSubject(headerSample, subjects) : { detected: false };
 
-  // Consolidar resultados finales
+  // Consolidar resultados finales:
+  // Si el documento en su texto/encabezado contiene detección con certeza, se le da PRIORIDAD sobre el nombre de archivo
   const finalCategory = docCategory.detected ? docCategory : fileCategory;
   const finalTerm = docTerm.detected ? docTerm.term : fileTerm.detected ? fileTerm.term : "1PAO";
   const finalYear = docYear.detected ? docYear.year : fileYear.detected ? fileYear.year : "S/F";
   const finalSubject = docSubject.detected ? docSubject : fileSubject;
 
-  // Detección de Solución / Solucionario / Rúbrica
-  const isSol = detectIsSolution(cleanFilename) || (headerSample ? detectIsSolution(headerSample) : false);
+  // Detección de Solución / Solucionario / Rúbrica en todo el texto del documento o en el nombre
+  const isSol = detectIsSolution(cleanFilename) || (rawHeaderOrDocumentText ? detectIsSolution(rawHeaderOrDocumentText) : false);
 
   // Generación de título limpio y estructurado para Exámenes, Lecciones y Talleres
   const suggestedTitle = generateCleanDocumentTitle({

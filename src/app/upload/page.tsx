@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
-import { detectDocumentMetadata, DetectedDocumentMetadata, SubjectOption } from "@/lib/metadata-detector";
+import { detectDocumentMetadata, generateCleanDocumentTitle, DetectedDocumentMetadata, SubjectOption } from "@/lib/metadata-detector";
 import { PdfViewerModal } from "@/components/PdfViewerModal";
 
 interface DriveFolderChildItem {
@@ -648,6 +648,35 @@ export default function UploadPage() {
     );
   };
 
+  // Actualizar metadatos de un ítem con regeneración inteligente de título si aplica
+  const handleItemMetadataUpdate = (
+    item: UploadQueueItem,
+    updates: Partial<UploadQueueItem>
+  ) => {
+    const merged = { ...item, ...updates };
+    let newTitle = merged.title;
+
+    if (
+      merged.category === "EXAMEN" ||
+      merged.category === "LECCION" ||
+      merged.category === "TALLER"
+    ) {
+      newTitle = generateCleanDocumentTitle({
+        category: merged.category,
+        subcategory: merged.subcategory,
+        periodYear: merged.periodYear,
+        periodTerm: merged.periodTerm,
+        isSolution: !!merged.isSolution,
+        originalFilename: merged.file?.name,
+      });
+    }
+
+    updateQueueItem(item.id, {
+      ...updates,
+      title: updates.title !== undefined ? updates.title : newTitle,
+    });
+  };
+
   // Añadir archivos adjuntos complementarios a un ítem
   const handleAddAttachmentToItem = (itemId: string, files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -743,13 +772,30 @@ export default function UploadPage() {
     setQueue((prev) =>
       prev.map((item) => {
         if (!targetIds.has(item.id)) return item;
+        const updatedCat = globalCategory;
+        const updatedSub = globalSubcategory;
+        const updatedYear = globalYear || item.periodYear;
+        const updatedTerm = globalPeriodTerm;
+        const newTitle =
+          updatedCat === "EXAMEN" || updatedCat === "LECCION" || updatedCat === "TALLER"
+            ? generateCleanDocumentTitle({
+                category: updatedCat,
+                subcategory: updatedSub,
+                periodYear: updatedYear,
+                periodTerm: updatedTerm,
+                isSolution: !!item.isSolution,
+                originalFilename: item.file?.name,
+              })
+            : item.title;
+
         return {
           ...item,
           ...(globalSubjectId ? { subjectId: globalSubjectId } : {}),
-          category: globalCategory,
-          subcategory: globalSubcategory,
-          ...(globalYear ? { periodYear: globalYear } : {}),
-          periodTerm: globalPeriodTerm,
+          category: updatedCat,
+          subcategory: updatedSub,
+          periodYear: updatedYear,
+          periodTerm: updatedTerm,
+          title: newTitle,
         };
       })
     );
@@ -1244,10 +1290,30 @@ export default function UploadPage() {
                               Google Drive
                             </span>
                           )}
-                          {item.isSolution && (
-                            <span className="rounded bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-300 border border-teal-500/30 flex items-center gap-1">
+                          {item.isSolution ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleItemMetadataUpdate(item, { isSolution: false });
+                              }}
+                              className="rounded bg-teal-500/15 hover:bg-teal-500/25 px-2 py-0.5 text-[10px] font-bold text-teal-300 border border-teal-500/30 flex items-center gap-1 transition"
+                              title="Haz clic para desmarcar como solución"
+                            >
                               <span>✓</span> Incluye Solución
-                            </span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleItemMetadataUpdate(item, { isSolution: true });
+                              }}
+                              className="rounded bg-zinc-800/80 hover:bg-zinc-700/80 px-2 py-0.5 text-[10px] font-medium text-zinc-400 hover:text-zinc-200 border border-zinc-700 transition flex items-center gap-1"
+                              title="Haz clic para marcar como solución"
+                            >
+                              <span>+</span> Solución
+                            </button>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-zinc-400">
@@ -1431,7 +1497,7 @@ export default function UploadPage() {
                             onChange={(e) => {
                               const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
                               const subOpts = getSubcategoryOptions(newCat);
-                              updateQueueItem(item.id, {
+                              handleItemMetadataUpdate(item, {
                                 category: newCat,
                                 subcategory: subOpts[0],
                               });
@@ -1451,7 +1517,7 @@ export default function UploadPage() {
                           <label className="block text-xs font-medium text-zinc-400 mb-1">Subcategoría</label>
                           <select
                             value={item.subcategory}
-                            onChange={(e) => updateQueueItem(item.id, { subcategory: e.target.value })}
+                            onChange={(e) => handleItemMetadataUpdate(item, { subcategory: e.target.value })}
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
                           >
                             {getSubcategoryOptions(item.category).map((opt) => (
@@ -1468,7 +1534,7 @@ export default function UploadPage() {
                           <input
                             type="text"
                             value={item.periodYear}
-                            onChange={(e) => updateQueueItem(item.id, { periodYear: e.target.value })}
+                            onChange={(e) => handleItemMetadataUpdate(item, { periodYear: e.target.value })}
                             placeholder="2026 o S/F"
                             title="Ingresa el año o escribe S/F si no tiene fecha definida"
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-2.5 py-2 text-xs text-white focus:border-blue-500 focus:outline-none text-center font-mono"
@@ -1480,13 +1546,42 @@ export default function UploadPage() {
                           <label className="block text-xs font-medium text-zinc-400 mb-1">Periodo</label>
                           <select
                             value={item.periodTerm}
-                            onChange={(e) => updateQueueItem(item.id, { periodTerm: e.target.value })}
+                            onChange={(e) => handleItemMetadataUpdate(item, { periodTerm: e.target.value })}
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-2 py-2 text-xs text-white focus:border-blue-500 focus:outline-none text-center font-semibold"
                           >
                             <option value="1PAO">1PAO</option>
                             <option value="2PAO">2PAO</option>
                             <option value="PAE">PAE</option>
                           </select>
+                        </div>
+
+                        {/* Botón de Solución */}
+                        <div className="shrink-0">
+                          <label className="block text-xs font-medium text-zinc-400 mb-1">Solución</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleItemMetadataUpdate(item, { isSolution: !item.isSolution });
+                            }}
+                            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                              item.isSolution
+                                ? "border-teal-500/50 bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 shadow-sm shadow-teal-500/10"
+                                : "border-zinc-800 bg-zinc-950 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                            }`}
+                            title="Alternar si este documento incluye la solución"
+                          >
+                            {item.isSolution ? (
+                              <>
+                                <CheckSquare className="h-4 w-4 text-teal-400" />
+                                <span>Solución ✓</span>
+                              </>
+                            ) : (
+                              <>
+                                <Square className="h-4 w-4 text-zinc-500" />
+                                <span>Sin Solución</span>
+                              </>
+                            )}
+                          </button>
                         </div>
                       </div>
 
