@@ -280,7 +280,19 @@ export function detectCategoryAndSubcategory(
   // 4. EXÁMENES - MEJORAMIENTO / 3RA EVALUACIÓN / RECUPERACIÓN / GRACIA
   // =========================================================================
   if (
-    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam|tercera evaluacion|evaluacion tercera|evaluacion 3|evaluacion iii|eval 3|eval iii|tercera eval|3ra evaluacion|3era evaluacion|3ra eval|3era eval|3 a evaluacion|3ra ev|tercera ev|examen de tercera evaluacion|tercer examen|3er examen|3er exam|examen 3|examen iii|tercer parcial|3er parcial|3ro parcial|3er p|3 p|3p|p 3|p3|parcial 3|parcial iii|evaluacion de mejoramiento|examen de mejoramiento|examen de recuperacion|examen de gracia)\b/.test(
+    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(
+      norm
+    ) ||
+    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+      norm
+    ) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(
+      norm
+    ) ||
+    /\b(?:3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(
+      norm
+    ) ||
+    /\b(?:examen\s+de\s+tercera\s+evaluacion|evaluacion\s+de\s+mejoramiento|examen\s+de\s+mejoramiento|examen\s+de\s+recuperacion|examen\s+de\s+gracia)\b/.test(
       norm
     )
   ) {
@@ -291,7 +303,19 @@ export function detectCategoryAndSubcategory(
   // 5. EXÁMENES - FINAL / 2DA EVALUACIÓN / 2DO PARCIAL
   // =========================================================================
   if (
-    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam|segunda evaluacion|evaluacion segunda|evaluacion 2|evaluacion ii|eval 2|eval ii|segunda eval|2da evaluacion|2nda evaluacion|2da eval|2nda eval|2 a evaluacion|2da ev|segunda ev|examen de segunda evaluacion|segundo examen|2do examen|2do exam|examen 2|examen ii|segundo parcial|2do parcial|2do p|2 p|2p|p 2|p2|parcial 2|parcial ii)\b/.test(
+    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(
+      norm
+    ) ||
+    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+      norm
+    ) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(
+      norm
+    ) ||
+    /\b(?:2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(
+      norm
+    ) ||
+    /\b(?:examen\s+de\s+segunda\s+evaluacion|segundo\s+examen|segundo\s+parcial)\b/.test(
       norm
     )
   ) {
@@ -302,7 +326,16 @@ export function detectCategoryAndSubcategory(
   // 6. EXÁMENES - PARCIAL / 1RA EVALUACIÓN / 1ER PARCIAL
   // =========================================================================
   if (
-    /\b(?:parcial|primer parcial|1er parcial|1ro parcial|1er p|1 p|1p|p 1|p1|parcial 1|parcial i|primera evaluacion|evaluacion primera|evaluacion 1|evaluacion i|eval 1|eval i|primera eval|1ra evaluacion|1era evaluacion|1ra eval|1era eval|1 a evaluacion|1ra ev|primera ev|examen parcial|evaluacion parcial|ex parcial|eval parcial|midterm|first exam|primer examen|1er examen|1ro examen|1er exam|examen 1|examen i|examen de primera evaluacion|examen|evaluacion)\b/.test(
+    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i)\b/.test(
+      norm
+    ) ||
+    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+      norm
+    ) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(
+      norm
+    ) ||
+    /\b(?:evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i|midterm|first exam|primer examen|1\s*er\s+examen|examen\s+de\s+primera\s+evaluacion|examen|evaluacion)\b/.test(
       norm
     )
   ) {
@@ -337,34 +370,42 @@ export function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" 
   const norm = normalizeString(combinedText);
 
   // 1. Detección directa por nombres de términos oficiales ESPOL
-  // PAE (Extraordinario / Intensivo / Verano / 3PAO / 3T / III PAO)
+  // -----------------------------------------------------------
+  // A) PAE (Extraordinario / Intensivo / Verano / 3PAO / 3T / III Término / Término III / Término 3)
   if (
-    /\b(?:pae|p\s*a\s*e|pao\s*(?:3|iii|tres)|3\s*pao|iii\s*pao|intensivo|extraordinario|verano|3\s*t|iii\s*t|t\s*3|t\s*iii|3\s*er\s*termino|tercer\s*termino|iii\s*termino|tercer\s*pao|3\s*er\s*pao|tercer\s*periodo|3\s*er\s*semestre)\b/.test(
-      norm
-    ) ||
+    /\b(?:pae|p\s*a\s*e|intensivo|extraordinario|verano)\b/.test(norm) ||
+    /\b(?:3\s*pao|iii\s*pao|pao\s*(?:3|iii|tres)|3\s*t|iii\s*t|t\s*3|t\s*iii)\b/.test(norm) ||
+    /\b(?:termino\s+(?:3|iii|tres|tercero?)|(?:3\s*er|3\s*ro|tercer|tercero|iii)\s+termino|tercer\s+periodo|3\s*er\s+semestre)\b/.test(norm) ||
     /\b(?:19|20)\d\d\s*[-_./]\s*(?:3|iii|pae|3t)\b/i.test(combinedText)
   ) {
     return { term: "PAE", detected: true };
   }
 
-  // 2PAO (II Término / 2T / 2do Término / II PAO / PAO 2 / PAO II)
-  if (
-    /\b(?:2\s*pao|ii\s*pao|pao\s*(?:2|ii|dos)|pao2|paoii|2\s*t|ii\s*t|t\s*2|t\s*ii|2\s*termino|2\s*do\s*termino|segundo\s*termino|ii\s*termino|segundo\s*pao|2\s*do\s*pao|2\s*da\s*pao|2\s*s|2\s*do\s*semestre|segundo\s*semestre|termino\s*(?:2|ii)|segundo\s*periodo|ii\s*periodo)\b/.test(
-      norm
-    ) ||
-    /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText)
-  ) {
+  // B) Término explícito con ordinal posterior: "termino i" o "termino 1" -> 1PAO, "termino ii" o "termino 2" -> 2PAO
+  if (/\btermino\s+(?:1|i|uno|primer|primero)\b/.test(norm)) {
+    return { term: "1PAO", detected: true };
+  }
+  if (/\btermino\s+(?:2|ii|dos|segundo)\b/.test(norm)) {
     return { term: "2PAO", detected: true };
   }
 
-  // 1PAO (I Término / 1T / 1er Término / I PAO / PAO 1 / PAO I)
+  // C) PAO con ordinal explícito: 1PAO, 2PAO, PAO 1, PAO 2, etc.
   if (
-    /\b(?:1\s*pao|i\s*pao|pao\s*(?:1|i|uno)|pao1|paoi|1\s*t|i\s*t|t\s*1|t\s*i|1\s*termino|1\s*er\s*termino|primer\s*termino|i\s*termino|primer\s*pao|1\s*er\s*pao|1\s*era\s*pao|1\s*s|1\s*er\s*semestre|primer\s*semestre|termino\s*(?:1|i)|primer\s*periodo|i\s*periodo)\b/.test(
-      norm
-    ) ||
+    /\b(?:1\s*pao|i\s*pao|pao\s*(?:1|i|uno)|1\s*t|i\s*t|t\s*1|t\s*i)\b/.test(norm) ||
+    /\b(?:1\s*er|1\s*ro|primer|primero|i)\s+termino\b/.test(norm) ||
+    /\b(?:primer\s+pao|1\s*er\s+pao|1\s*era\s+pao|primer\s+periodo|i\s+periodo|primer\s+semestre|1\s*er\s+semestre|1\s*s|i\s*s)\b/.test(norm) ||
     /\b(?:19|20)\d\d\s*[-_./]\s*(?:1|i|1pao|1t)\b/i.test(combinedText)
   ) {
     return { term: "1PAO", detected: true };
+  }
+
+  if (
+    /\b(?:2\s*pao|ii\s*pao|pao\s*(?:2|ii|dos)|2\s*t|ii\s*t|t\s*2|t\s*ii)\b/.test(norm) ||
+    /\b(?:2\s*do|2\s*da|segundo|ii)\s+termino\b/.test(norm) ||
+    /\b(?:segundo\s+pao|2\s*do\s+pao|2\s*da\s+pao|segundo\s+periodo|ii\s+periodo|segundo\s+semestre|2\s*do\s+semestre|2\s*s|ii\s*s)\b/.test(norm) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText)
+  ) {
+    return { term: "2PAO", detected: true };
   }
 
   // 2. Detección por meses del calendario académico ESPOL
