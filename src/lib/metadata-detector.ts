@@ -2,7 +2,7 @@
  * Detector inteligente de metadatos académicos para documentos de la ESPOL en RePol.
  * 
  * Analiza en 2 etapas:
- * 1. Etapa 1: Nombre del archivo (e.g. "Examen_Final_CCPG1043_2024_1PAO.pdf").
+ * 1. Etapa 1: Nombre del archivo (e.g. "Leccion1_solucion.pdf", "Examen_Final_CCPG1043_2024_1PAO.pdf").
  * 2. Etapa 2: Encabezado / Primeras páginas del documento (PDF / DOCX) con patrones oficiales de la ESPOL.
  * 
  * Reglas de calendario académico ESPOL:
@@ -28,27 +28,94 @@ export interface DetectedDocumentMetadata {
   subcategory: string;
   periodYear: string; // "2024", "2025", "S/F"
   periodTerm: "1PAO" | "2PAO" | "PAE";
+  isSolution: boolean;
+  suggestedTitle: string;
   confidence: {
     subject: boolean;
     category: boolean;
     periodYear: boolean;
     periodTerm: boolean;
+    isSolution: boolean;
   };
 }
 
 /**
  * Normaliza cadenas para comparación fonética/semántica:
- * Remueve tildes, símbolos, mayúsculas y reduce espacios.
+ * Remueve tildes, separa letras y números pegados (ej. 'leccion1' -> 'leccion 1'), símbolos, mayúsculas y reduce espacios.
  */
-function normalizeString(str: string): string {
+export function normalizeString(str: string): string {
   if (!str) return "";
   return str
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "") // Remueve acentos
+    .replace(/([a-z])([0-9])/g, "$1 $2") // Separa letras de números pegados ej: leccion1 -> leccion 1
+    .replace(/([0-9])([a-z])/g, "$1 $2") // Separa números de letras pegadas ej: 1pao -> 1 pao
     .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+/**
+ * Detecta si el documento contiene la solución / solucionario / respuestas / rúbrica
+ */
+export function detectIsSolution(combinedText: string): boolean {
+  if (!combinedText) return false;
+  const norm = normalizeString(combinedText);
+  return /\b(?:solucion|solucionario|soluciones|sol|rubrica|pauta|clave|respuestas|resuelto|resueltos|calificado|solution|solutions|answer|answers)\b/.test(
+    norm
+  );
+}
+
+/**
+ * Genera un título limpio y estandarizado para Exámenes, Lecciones y Talleres.
+ * Para Clases y Tareas preserva el nombre descriptivo original.
+ */
+export function generateCleanDocumentTitle(metadata: {
+  category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
+  subcategory: string;
+  periodYear: string;
+  periodTerm: string;
+  isSolution: boolean;
+  originalFilename?: string;
+}): string {
+  const isSol = metadata.isSolution;
+  const solSuffix = isSol ? " (Solución)" : "";
+  const yearStr =
+    metadata.periodYear && metadata.periodYear !== "S/F" && metadata.periodYear !== "0"
+      ? metadata.periodYear
+      : "";
+  const termStr = metadata.periodTerm || "1PAO";
+  const periodTag = yearStr ? ` ${yearStr} - ${termStr}` : "";
+
+  if (metadata.category === "EXAMEN") {
+    let examName = "Examen Parcial";
+    if (metadata.subcategory === "Final") examName = "Examen Final";
+    else if (metadata.subcategory === "Mejoramiento") examName = "Examen de Mejoramiento";
+    else if (metadata.subcategory && metadata.subcategory !== "Otro") examName = `Examen ${metadata.subcategory}`;
+
+    return `${examName}${periodTag}${solSuffix}`.trim();
+  }
+
+  if (metadata.category === "LECCION") {
+    const sub = metadata.subcategory && metadata.subcategory !== "Otro" ? metadata.subcategory : "Lección";
+    return `${sub}${periodTag}${solSuffix}`.trim();
+  }
+
+  if (metadata.category === "TALLER") {
+    const sub = metadata.subcategory && metadata.subcategory !== "Otro" ? metadata.subcategory : "Taller";
+    return `${sub}${periodTag}${solSuffix}`.trim();
+  }
+
+  // Para CLASE y TAREA (Material de Entrenamiento):
+  // No imponer un nombre genérico para permitir que descripciones específicas se mantengan
+  const cleanOriginal = (metadata.originalFilename || "")
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleanOriginal || `${metadata.subcategory || "Documento"}${periodTag}${solSuffix}`.trim();
 }
 
 /**
@@ -59,68 +126,41 @@ function detectCategoryAndSubcategory(
 ): { category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA"; subcategory: string; detected: boolean } {
   const norm = normalizeString(combinedText);
 
-  // 1. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / Evaluación Tercera / 3P
-  if (
-    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|evaluacion\s+tercera|evaluacion\s*#?\s*3|evaluacion\s+iii|eval\s*#?\s*3|eval\s+iii|3ra\s+evaluacion|3era\s+evaluacion|3ra\s+eval|3p|3er\s+parcial|tercer\s+parcial|evaluacion\s+de\s+mejoramiento|evaluacion\s+de\s+gracia)\b/.test(
-      norm
-    )
-  ) {
-    return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
-  }
-
-  // 2. EXAMEN - Final / 2da Evaluación / Evaluación Segunda / 2P
-  if (
-    /\b(?:final|examen\s+final|evaluacion\s+final|segunda\s+evaluacion|evaluacion\s+segunda|evaluacion\s*#?\s*2|evaluacion\s+ii|eval\s*#?\s*2|eval\s+ii|2da\s+evaluacion|2da\s+eval|2p|2do\s+parcial|segundo\s+parcial)\b/.test(
-      norm
-    )
-  ) {
-    return { category: "EXAMEN", subcategory: "Final", detected: true };
-  }
-
-  // 3. EXAMEN - Parcial / 1ra Evaluación / Evaluación Primera / 1P
-  if (
-    /\b(?:parcial|primer\s+parcial|1er\s+parcial|primera\s+evaluacion|evaluacion\s+primera|evaluacion\s*#?\s*1|evaluacion\s+i|eval\s*#?\s*1|eval\s+i|1ra\s+evaluacion|1era\s+evaluacion|1ra\s+eval|1p|examen\s+parcial|evaluacion\s+parcial|examen)\b/.test(
-      norm
-    )
-  ) {
-    return { category: "EXAMEN", subcategory: "Parcial", detected: true };
-  }
-
-  // 4. LECCIÓN (1, 2, 3, 4, etc.)
-  if (/\b(?:leccion|leccion\s*#?|control\s+de\s+lectura|quiz|l1|l2|l3|l4)\b/.test(norm)) {
-    if (/\b(?:leccion\s*4|leccion\s*iv|l4|quiz\s*4|cuarta\s+leccion)\b/.test(norm)) {
+  // 1. LECCIÓN (1, 2, 3, 4, etc.) - Evaluado primero para evitar colisión con 'evaluación' genérica
+  if (/\b(?:leccion|lecc|lec|quiz|control\s+de\s+lectura|l\s*1|l\s*2|l\s*3|l\s*4)\b/.test(norm)) {
+    if (/\b(?:leccion\s*4|leccion\s*iv|lec\s*4|l\s*4|quiz\s*4|cuarta\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 4", detected: true };
     }
-    if (/\b(?:leccion\s*3|leccion\s*iii|l3|quiz\s*3|tercera\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*3|leccion\s*iii|lec\s*3|l\s*3|quiz\s*3|tercera\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 3", detected: true };
     }
-    if (/\b(?:leccion\s*2|leccion\s*ii|l2|quiz\s*2|segunda\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*2|leccion\s*ii|lec\s*2|l\s*2|quiz\s*2|segunda\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 2", detected: true };
     }
-    if (/\b(?:leccion\s*1|leccion\s*i|l1|quiz\s*1|primera\s+leccion)\b/.test(norm)) {
+    if (/\b(?:leccion\s*1|leccion\s*i|lec\s*1|l\s*1|quiz\s*1|primera\s+leccion)\b/.test(norm)) {
       return { category: "LECCION", subcategory: "Lección 1", detected: true };
     }
     return { category: "LECCION", subcategory: "Lección 1", detected: true };
   }
 
-  // 5. TALLERES (Taller 1, 2, 3, 4)
-  if (/\b(?:taller|taller\s*#?|t1|t2|t3|t4)\b/.test(norm)) {
-    if (/\b(?:taller\s*4|taller\s*iv|t4)\b/.test(norm)) {
+  // 2. TALLERES (Taller 1, 2, 3, 4)
+  if (/\b(?:taller|tall|workshop|t\s*1|t\s*2|t\s*3|t\s*4)\b/.test(norm)) {
+    if (/\b(?:taller\s*4|taller\s*iv|tall\s*4|t\s*4|cuarto\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 4", detected: true };
     }
-    if (/\b(?:taller\s*3|taller\s*iii|t3)\b/.test(norm)) {
+    if (/\b(?:taller\s*3|taller\s*iii|tall\s*3|t\s*3|tercer\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 3", detected: true };
     }
-    if (/\b(?:taller\s*2|taller\s*ii|t2)\b/.test(norm)) {
+    if (/\b(?:taller\s*2|taller\s*ii|tall\s*2|t\s*2|segundo\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 2", detected: true };
     }
-    if (/\b(?:taller\s*1|taller\s*i|t1)\b/.test(norm)) {
+    if (/\b(?:taller\s*1|taller\s*i|tall\s*1|t\s*1|primer\s+taller)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
     return { category: "TALLER", subcategory: "Taller 1", detected: true };
   }
 
-  // 6. TAREAS Y EJERCICIOS (Tareas, Ejercicios Extras, Guía de Problemas, Otro)
+  // 3. MATERIAL DE ENTRENAMIENTO / TAREAS (Tareas, Ejercicios Extras, Guía de Problemas, Otro)
   if (
     /\b(?:tarea|tareas|deber|deberes|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|guia\s+de\s+problemas|problemas\s+propuestos|problemas\s+resueltos|problemas)\b/.test(
       norm
@@ -135,11 +175,38 @@ function detectCategoryAndSubcategory(
     return { category: "TAREA", subcategory: "Tareas", detected: true };
   }
 
+  // 4. EXAMEN - Mejoramiento / Gracia / 3ra Evaluación / Evaluación Tercera / 3P
+  if (
+    /\b(?:mejoramiento|recuperacion|gracia|tercera\s+evaluacion|evaluacion\s+tercera|evaluacion\s*3|evaluacion\s+iii|eval\s*3|eval\s+iii|3\s*ra\s+evaluacion|3\s*era\s+evaluacion|3\s*ra\s+eval|3\s*p|3\s*er\s+parcial|tercer\s+parcial|evaluacion\s+de\s+mejoramiento|evaluacion\s+de\s+gracia)\b/.test(
+      norm
+    )
+  ) {
+    return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
+  }
+
+  // 5. EXAMEN - Final / 2da Evaluación / Evaluación Segunda / 2P
+  if (
+    /\b(?:final|examen\s+final|evaluacion\s+final|segunda\s+evaluacion|evaluacion\s+segunda|evaluacion\s*2|evaluacion\s+ii|eval\s*2|eval\s+ii|2\s*da\s+evaluacion|2\s*da\s+eval|2\s*p|2\s*do\s+parcial|segundo\s+parcial)\b/.test(
+      norm
+    )
+  ) {
+    return { category: "EXAMEN", subcategory: "Final", detected: true };
+  }
+
+  // 6. EXAMEN - Parcial / 1ra Evaluación / Evaluación Primera / 1P
+  if (
+    /\b(?:parcial|primer\s+parcial|1\s*er\s+parcial|primera\s+evaluacion|evaluacion\s+primera|evaluacion\s*1|evaluacion\s+i|eval\s*1|eval\s+i|1\s*ra\s+evaluacion|1\s*era\s+evaluacion|1\s*ra\s+eval|1\s*p|examen\s+parcial|evaluacion\s+parcial|examen|evaluacion)\b/.test(
+      norm
+    )
+  ) {
+    return { category: "EXAMEN", subcategory: "Parcial", detected: true };
+  }
+
   // 7. CLASES Y APUNTES (Diapositivas, Apuntes de Clase, Guía Teórica)
   if (/\b(?:diapositiva|diapositivas|slide|slides|presentacion|ppt|powerpoint)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Diapositivas", detected: true };
   }
-  if (/\b(?:guia|syllabus|silabo|formulario|formulario\s+oficial)\b/.test(norm)) {
+  if (/\b(?:guia|syllabus|silabo|formulario|formulario\s+oficial|formulario\s+teorico)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Guía Teórica", detected: true };
   }
   if (/\b(?:apuntes|notas|clase|resumen|teoria|resumenes)\b/.test(norm)) {
@@ -158,13 +225,13 @@ function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" | "PAE"
 
   // 1. Detección directa por nombres de términos
   // PAE (Extraordinario / Intensivo / Verano / 3T)
-  if (/\b(?:pae|intensivo|extraordinario|verano|3t|3\s*t|iii\s*t|3er\s*termino|tercer\s*termino)\b/.test(norm)) {
+  if (/\b(?:pae|intensivo|extraordinario|verano|3\s*t|iii\s*t|3\s*er\s*termino|tercer\s*termino)\b/.test(norm)) {
     return { term: "PAE", detected: true };
   }
 
   // 1PAO (I Término / 1T / 1er Término)
   if (
-    /\b(?:1pao|1\s*pao|i\s*pao|1t|1\s*t|1\s*termino|1er\s*termino|primer\s*termino|i\s*termino)\b/.test(
+    /\b(?:1\s*pao|i\s*pao|1\s*t|1\s*termino|1\s*er\s*termino|primer\s*termino|i\s*termino)\b/.test(
       norm
     )
   ) {
@@ -173,7 +240,7 @@ function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" | "PAE"
 
   // 2PAO (II Término / 2T / 2do Término)
   if (
-    /\b(?:2pao|2\s*pao|ii\s*pao|2t|2\s*t|2\s*termino|2do\s*termino|segundo\s*termino|ii\s*termino)\b/.test(
+    /\b(?:2\s*pao|ii\s*pao|2\s*t|2\s*termino|2\s*do\s*termino|segundo\s*termino|ii\s*termino)\b/.test(
       norm
     )
   ) {
@@ -218,7 +285,6 @@ function detectPeriodYear(
   const rangeMatch = combinedText.match(/\b(19\d\d|20\d\d)\s*[\-\/]\s*(19\d\d|20\d\d)\b/);
   if (rangeMatch) {
     const firstYear = parseInt(rangeMatch[1], 10);
-    // Si el término es 2PAO y cruza fin de año (ej. 2024-2025), el año base es el primero
     return { year: String(firstYear), detected: true };
   }
 
@@ -226,9 +292,7 @@ function detectPeriodYear(
   const yearMatches = Array.from(combinedText.matchAll(/\b(199\d|20[0-3]\d)\b/g)).map((m) => parseInt(m[1], 10));
 
   if (yearMatches.length > 0) {
-    // Si hay un año en contexto de fecha reciente o primer match relevante
     const currentYear = new Date().getFullYear();
-    // Priorizar años razonables cercanos al año actual
     const validYears = yearMatches.filter((y) => y >= 1995 && y <= currentYear + 1);
     if (validYears.length > 0) {
       return { year: String(validYears[0]), detected: true };
@@ -236,7 +300,6 @@ function detectPeriodYear(
     return { year: String(yearMatches[0]), detected: true };
   }
 
-  // Si no se encontró año en ninguna parte
   return { year: "S/F", detected: false };
 }
 
@@ -254,12 +317,11 @@ function detectSubject(
   const norm = normalizeString(combinedText);
   const upperRaw = combinedText.toUpperCase();
 
-  // 1. Búsqueda por CÓDIGO OFICIAL ESPOL (ej: CCPG1043, MATG1001, FISG1002, FIEC-0123)
+  // 1. Búsqueda por CÓDIGO OFICIAL ESPOL (ej: CCPG1043, MATG1001, FISG1002)
   for (const sub of subjects) {
     if (!sub.code) continue;
     const cleanCode = sub.code.toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (cleanCode.length >= 4) {
-      // Buscar el código en el texto original o normalizado
       const codeRegex = new RegExp(`\\b${cleanCode}\\b`, "i");
       if (codeRegex.test(upperRaw.replace(/[^A-Z0-9\s]/g, " "))) {
         return {
@@ -272,14 +334,13 @@ function detectSubject(
     }
   }
 
-  // 2. Búsqueda por NOMBRE DE MATERIA (de mayor longitud a menor longitud para evitar falsos positivos)
+  // 2. Búsqueda por NOMBRE DE MATERIA (de mayor longitud a menor longitud)
   const sortedSubjects = [...subjects].sort((a, b) => b.name.length - a.name.length);
 
   for (const sub of sortedSubjects) {
     const subNorm = normalizeString(sub.name);
     if (subNorm.length < 4) continue;
 
-    // Coincidencia exacta del nombre completo de la materia
     const nameRegex = new RegExp(`\\b${subNorm}\\b`, "i");
     if (nameRegex.test(norm)) {
       return {
@@ -309,7 +370,6 @@ function detectSubject(
   for (const [aliasKey, aliasList] of Object.entries(commonAliases)) {
     for (const alias of aliasList) {
       if (norm.includes(alias)) {
-        // Encontrar la materia que coincida con este alias
         const found = sortedSubjects.find((s) => {
           const sNorm = normalizeString(s.name);
           return sNorm.includes(aliasKey) || aliasList.some((a) => sNorm.includes(a));
@@ -339,8 +399,7 @@ export function detectDocumentMetadata(
   rawHeaderOrDocumentText: string = "",
   subjects: SubjectOption[] = []
 ): DetectedDocumentMetadata {
-  const cleanFilename = filename.replace(/\.[^/.]+$/, ""); // Remueve extensión .pdf/.docx
-  // Primeros 3500 caracteres del documento contienen el encabezado completo, fecha, materia y evaluación
+  const cleanFilename = filename.replace(/\.[^/.]+$/, ""); // Remueve extensión
   const headerSample = (rawHeaderOrDocumentText || "").substring(0, 3500);
 
   // Etapa 1: Análisis del nombre del archivo
@@ -361,6 +420,19 @@ export function detectDocumentMetadata(
   const finalYear = docYear.detected ? docYear.year : fileYear.detected ? fileYear.year : "S/F";
   const finalSubject = docSubject.detected ? docSubject : fileSubject;
 
+  // Detección de Solución / Solucionario / Rúbrica
+  const isSol = detectIsSolution(cleanFilename) || (headerSample ? detectIsSolution(headerSample) : false);
+
+  // Generación de título limpio y estructurado para Exámenes, Lecciones y Talleres
+  const suggestedTitle = generateCleanDocumentTitle({
+    category: finalCategory.category,
+    subcategory: finalCategory.subcategory,
+    periodYear: finalYear,
+    periodTerm: finalTerm,
+    isSolution: isSol,
+    originalFilename: filename,
+  });
+
   return {
     subjectId: finalSubject.subjectId,
     subjectName: finalSubject.subjectName,
@@ -369,11 +441,14 @@ export function detectDocumentMetadata(
     subcategory: finalCategory.subcategory,
     periodYear: finalYear,
     periodTerm: finalTerm,
+    isSolution: isSol,
+    suggestedTitle,
     confidence: {
       subject: finalSubject.detected,
       category: finalCategory.detected,
       periodYear: docYear.detected || fileYear.detected,
       periodTerm: docTerm.detected || fileTerm.detected,
+      isSolution: isSol,
     },
   };
 }

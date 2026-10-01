@@ -12,6 +12,9 @@ function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").trim();
 }
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 60;
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);

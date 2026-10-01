@@ -75,6 +75,7 @@ export interface UploadQueueItem {
   periodTerm: string;
   fileHash: string;
   isHashing: boolean;
+  isSolution?: boolean;
   duplicateCheck: {
     exists: boolean;
     type?: string;
@@ -215,21 +216,27 @@ export default function UploadPage() {
 
       // 1. Detección inteligente preliminar e instantánea en el cliente por nombre de archivo
       const detected = detectDocumentMetadata(currentFile.name, "", subjectOptionsForDetection);
+      const initialCategory = detected.confidence.category ? detected.category : globalCategory;
+      const initialSubcategory = detected.confidence.category ? detected.subcategory : globalSubcategory;
+      const initialTitle = (detected.suggestedTitle && (initialCategory === "EXAMEN" || initialCategory === "LECCION" || initialCategory === "TALLER"))
+        ? detected.suggestedTitle
+        : cleanName;
 
       const item: UploadQueueItem = {
         id: itemId,
         mode: "FILE",
         file: currentFile,
-        title: cleanName,
+        title: initialTitle,
         description: "",
         subjectId: detected.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
-        category: detected.confidence.category ? detected.category : globalCategory,
-        subcategory: detected.confidence.category ? detected.subcategory : globalSubcategory,
+        category: initialCategory,
+        subcategory: initialSubcategory,
         customDescription: "",
         periodYear: (detected.periodYear && detected.periodYear !== "S/F")
           ? detected.periodYear
           : (detected.confidence.periodYear ? "S/F" : (globalYear || new Date().getFullYear().toString())),
         periodTerm: detected.confidence.periodTerm ? detected.periodTerm : (globalPeriodTerm || "1PAO"),
+        isSolution: detected.isSolution,
         fileHash: "",
         isHashing: true,
         duplicateCheck: null,
@@ -277,14 +284,20 @@ export default function UploadPage() {
                 const updatedSubcategory = meta?.confidence?.category ? meta.subcategory : q.subcategory;
                 const updatedYear = (meta?.confidence?.periodYear && meta?.periodYear) ? meta.periodYear : q.periodYear;
                 const updatedTerm = (meta?.confidence?.periodTerm && meta?.periodTerm) ? meta.periodTerm : q.periodTerm;
+                const updatedIsSolution = meta?.isSolution ?? q.isSolution;
+                const updatedTitle = (meta?.suggestedTitle && (updatedCategory === "EXAMEN" || updatedCategory === "LECCION" || updatedCategory === "TALLER"))
+                  ? meta.suggestedTitle
+                  : q.title;
 
                 return {
                   ...q,
+                  title: updatedTitle,
                   subjectId: updatedSubject,
                   category: updatedCategory,
                   subcategory: updatedSubcategory,
                   periodYear: updatedYear,
                   periodTerm: updatedTerm,
+                  isSolution: updatedIsSolution,
                   fileHash: calculatedHash,
                   isHashing: false,
                   duplicateCheck: isDuplicateInQueue
@@ -378,19 +391,24 @@ export default function UploadPage() {
         // Carpeta de Google Drive: agregar todos los archivos contenidos como ítems individuales
         const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem & { detectedMetadata?: DetectedDocumentMetadata }, idx: number) => {
           const meta = item.detectedMetadata || detectDocumentMetadata(`${item.folderPath || ""} ${item.name}`, "", subjectOptionsForDetection);
+          const itemCat = meta.category || globalCategory;
+          const driveTitle = (meta.suggestedTitle && (itemCat === "EXAMEN" || itemCat === "LECCION" || itemCat === "TALLER"))
+            ? meta.suggestedTitle
+            : (item.name || `Documento ${idx + 1}`);
 
           return {
             id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
             mode: "GDRIVE",
             driveUrl: item.fileUrl,
-            title: item.name || `Documento ${idx + 1}`,
+            title: driveTitle,
             description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
             subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
-            category: meta.category || globalCategory,
+            category: itemCat,
             subcategory: meta.subcategory || globalSubcategory,
             customDescription: "",
             periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
             periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
+            isSolution: meta.isSolution,
             fileHash: item.fileHash,
             isHashing: false,
             duplicateCheck: item.exists
@@ -418,19 +436,25 @@ export default function UploadPage() {
 
       // Archivo único de Google Drive
       const meta = data.detectedMetadata || detectDocumentMetadata(data.name || inputDriveUrl, "", subjectOptionsForDetection);
+      const driveCategory = meta.category || globalCategory;
+      const singleDriveTitle = (meta.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
+        ? meta.suggestedTitle
+        : (data.name || `Material Drive - ${new Date().toLocaleDateString()}`);
+
       const itemId = `drive-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newItem: UploadQueueItem = {
         id: itemId,
         mode: "GDRIVE",
         driveUrl: inputDriveUrl,
-        title: data.name || `Material Drive - ${new Date().toLocaleDateString()}`,
+        title: singleDriveTitle,
         description: "",
         subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
-        category: meta.category || globalCategory,
+        category: driveCategory,
         subcategory: meta.subcategory || globalSubcategory,
         customDescription: "",
         periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
         periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
+        isSolution: meta.isSolution,
         fileHash: data.fileHash,
         isHashing: false,
         duplicateCheck: data.exists
@@ -1056,6 +1080,11 @@ export default function UploadPage() {
                           {item.mode === "GDRIVE" && (
                             <span className="rounded bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/20">
                               Google Drive
+                            </span>
+                          )}
+                          {item.isSolution && (
+                            <span className="rounded bg-teal-500/15 px-2 py-0.5 text-[10px] font-bold text-teal-300 border border-teal-500/30 flex items-center gap-1">
+                              <span>✓</span> Incluye Solución
                             </span>
                           )}
                         </div>
