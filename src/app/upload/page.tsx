@@ -175,7 +175,7 @@ export default function UploadPage() {
       case "LECCION":
         return ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"];
       case "TALLER":
-        return ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"];
+        return ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Tareas", "Ejercicios Extras", "Proyecto", "Otro"];
       case "EXAMEN":
         return ["Parcial", "Final", "Mejoramiento"];
       case "CLASE":
@@ -833,10 +833,10 @@ export default function UploadPage() {
               }}
               className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
             >
-              <option value="EXAMEN">Examen</option>
-              <option value="LECCION">Lección</option>
-              <option value="TALLER">Taller / Deber</option>
-              <option value="CLASE">Clase / Diapositivas</option>
+              <option value="EXAMEN">Exámenes</option>
+              <option value="LECCION">Lecciones</option>
+              <option value="TALLER">Talleres y Tareas</option>
+              <option value="CLASE">Clases y Apuntes</option>
             </select>
           </div>
 
@@ -1213,10 +1213,10 @@ export default function UploadPage() {
                             }}
                             className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
                           >
-                            <option value="LECCION">Lección</option>
-                            <option value="EXAMEN">Examen</option>
-                            <option value="TALLER">Taller / Deber</option>
-                            <option value="CLASE">Clase / Diapositivas</option>
+                            <option value="EXAMEN">Exámenes</option>
+                            <option value="LECCION">Lecciones</option>
+                            <option value="TALLER">Talleres y Tareas</option>
+                            <option value="CLASE">Clases y Apuntes</option>
                           </select>
                         </div>
 

@@ -103,29 +103,45 @@ function detectCategoryAndSubcategory(
     return { category: "LECCION", subcategory: "Lección 1", detected: true };
   }
 
-  // 5. TALLER / TAREA / DEBER / PRÁCTICA
-  if (/\b(?:taller|taller\s*#?|deber|tarea|homework|hw|practica|laboratorio|lab|t1|t2|t3|t4)\b/.test(norm)) {
-    if (/\b(?:taller\s*4|taller\s*iv|t4|deber\s*4|tarea\s*4|practica\s*4|lab\s*4)\b/.test(norm)) {
+  // 5. TALLER / TAREA / DEBER / PRÁCTICA / EJERCICIOS EXTRAS / PROYECTO
+  if (
+    /\b(?:taller|taller\s*#?|deber|tarea|tareas|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|proyecto|project|t1|t2|t3|t4)\b/.test(
+      norm
+    )
+  ) {
+    if (/\b(?:proyecto|project)\b/.test(norm)) {
+      return { category: "TALLER", subcategory: "Proyecto", detected: true };
+    }
+    if (/\b(?:ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|problemas\s+propuestos|problemas\s+resueltos)\b/.test(norm)) {
+      return { category: "TALLER", subcategory: "Ejercicios Extras", detected: true };
+    }
+    if (/\b(?:tarea|tareas|deber|deberes|homework|hw)\b/.test(norm)) {
+      return { category: "TALLER", subcategory: "Tareas", detected: true };
+    }
+    if (/\b(?:taller\s*4|taller\s*iv|t4|practica\s*4|lab\s*4)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 4", detected: true };
     }
-    if (/\b(?:taller\s*3|taller\s*iii|t3|deber\s*3|tarea\s*3|practica\s*3|lab\s*3)\b/.test(norm)) {
+    if (/\b(?:taller\s*3|taller\s*iii|t3|practica\s*3|lab\s*3)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 3", detected: true };
     }
-    if (/\b(?:taller\s*2|taller\s*ii|t2|deber\s*2|tarea\s*2|practica\s*2|lab\s*2)\b/.test(norm)) {
+    if (/\b(?:taller\s*2|taller\s*ii|t2|practica\s*2|lab\s*2)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 2", detected: true };
     }
-    if (/\b(?:taller\s*1|taller\s*i|t1|deber\s*1|tarea\s*1|practica\s*1|lab\s*1)\b/.test(norm)) {
+    if (/\b(?:taller\s*1|taller\s*i|t1|practica\s*1|lab\s*1)\b/.test(norm)) {
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
     return { category: "TALLER", subcategory: "Taller 1", detected: true };
   }
 
-  // 6. MATERIAL DE CLASE (Diapositivas, Apuntes, Guías)
+  // 6. MATERIAL DE CLASE (Diapositivas, Apuntes, Guías, Bibliografía)
   if (/\b(?:diapositiva|diapositivas|slide|slides|presentacion|ppt|powerpoint)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Diapositivas", detected: true };
   }
-  if (/\b(?:guia|syllabus|silabo|libro|bibliografia|formulario|formulario\s+oficial)\b/.test(norm)) {
+  if (/\b(?:guia|syllabus|silabo|formulario|formulario\s+oficial)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Guía Teórica", detected: true };
+  }
+  if (/\b(?:bibliografia|libro|libros|textbook|referencia)\b/.test(norm)) {
+    return { category: "CLASE", subcategory: "Bibliografía", detected: true };
   }
   if (/\b(?:apuntes|notas|clase|resumen|teoria|resumenes)\b/.test(norm)) {
     return { category: "CLASE", subcategory: "Apuntes de Clase", detected: true };

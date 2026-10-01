@@ -142,9 +142,9 @@ export default function HomePage() {
 
   const subcategoryFilters = {
     LECCION: ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"],
-    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"],
+    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Tareas", "Ejercicios Extras", "Proyecto", "Otro"],
     EXAMEN: ["Parcial", "Final", "Mejoramiento"],
-    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica"],
+    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Bibliografía", "Otro"],
   };
 
   const hasActiveFilters = Boolean(
@@ -214,7 +214,7 @@ export default function HomePage() {
           folders: [
             { category: "EXAMEN", label: "Exámenes", iconColor: "text-rose-400", documents: [] },
             { category: "LECCION", label: "Lecciones", iconColor: "text-amber-400", documents: [] },
-            { category: "TALLER", label: "Talleres y Deberes", iconColor: "text-blue-400", documents: [] },
+            { category: "TALLER", label: "Talleres y Tareas", iconColor: "text-blue-400", documents: [] },
             { category: "CLASE", label: "Clases y Apuntes", iconColor: "text-emerald-400", documents: [] },
           ],
         });
@@ -363,7 +363,7 @@ export default function HomePage() {
             {[
               { id: "", label: "Todos los Tipos" },
               { id: "LECCION", label: "Lecciones" },
-              { id: "TALLER", label: "Talleres" },
+              { id: "TALLER", label: "Talleres y Tareas" },
               { id: "EXAMEN", label: "Exámenes" },
               { id: "CLASE", label: "Clases y Apuntes" },
             ].map((cat) => (

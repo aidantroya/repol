@@ -130,13 +130,11 @@ export function EditDocumentModal({
     }
   }, [isOpen, initialDoc]);
 
-  if (!isOpen || !mounted) return null;
-
   const subcategoryOptions: Record<"EXAMEN" | "LECCION" | "TALLER" | "CLASE", string[]> = {
     EXAMEN: ["Parcial", "Final", "Mejoramiento", "Otro"],
     LECCION: ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"],
-    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"],
-    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Otro"],
+    TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Tareas", "Ejercicios Extras", "Proyecto", "Otro"],
+    CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Bibliografía", "Otro"],
   };
 
   const currentSubcategories = subcategoryOptions[category] || ["General", "Otro"];
@@ -225,6 +223,8 @@ export function EditDocumentModal({
       setIsSaving(false);
     }
   };
+
+  if (!isOpen || !mounted) return null;
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -403,10 +403,10 @@ export function EditDocumentModal({
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
-                  <option value="EXAMEN">Examen</option>
-                  <option value="LECCION">Lección</option>
-                  <option value="TALLER">Taller / Deber</option>
-                  <option value="CLASE">Clase / Apuntes</option>
+                  <option value="EXAMEN">Exámenes</option>
+                  <option value="LECCION">Lecciones</option>
+                  <option value="TALLER">Talleres y Tareas</option>
+                  <option value="CLASE">Clases y Apuntes</option>
                 </select>
               </div>
 

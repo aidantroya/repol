@@ -17,13 +17,13 @@ export function formatBytes(bytes: number, decimals = 2): string {
 export function getCategoryLabel(category: string): string {
   switch (category) {
     case "CLASE":
-      return "Clase / Apuntes";
+      return "Clases y Apuntes";
     case "LECCION":
-      return "Lección";
+      return "Lecciones";
     case "TALLER":
-      return "Taller";
+      return "Talleres y Tareas";
     case "EXAMEN":
-      return "Examen";
+      return "Exámenes";
     default:
       return category;
   }
