@@ -143,7 +143,7 @@ export default function HomePage() {
   const subcategoryFilters = {
     LECCION: ["Lección 1", "Lección 2", "Lección 3", "Lección 4", "Otro"],
     TALLER: ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"],
-    TAREA: ["Tarea 1", "Tarea 2", "Tarea 3", "Tarea 4", "Tareas", "Ejercicios Extras", "Guía de Ejercicios", "Proyecto", "Otro"],
+    TAREA: ["Tareas", "Ejercicios Extras", "Guía de Problemas", "Otro"],
     EXAMEN: ["Parcial", "Final", "Mejoramiento"],
     CLASE: ["Apuntes de Clase", "Diapositivas", "Guía Teórica", "Otro"],
   };

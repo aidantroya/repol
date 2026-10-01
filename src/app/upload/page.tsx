@@ -177,7 +177,7 @@ export default function UploadPage() {
       case "TALLER":
         return ["Taller 1", "Taller 2", "Taller 3", "Taller 4", "Otro"];
       case "TAREA":
-        return ["Tarea 1", "Tarea 2", "Tarea 3", "Tarea 4", "Tareas", "Ejercicios Extras", "Guía de Ejercicios", "Proyecto", "Otro"];
+        return ["Tareas", "Ejercicios Extras", "Guía de Problemas", "Otro"];
       case "EXAMEN":
         return ["Parcial", "Final", "Mejoramiento"];
       case "CLASE":

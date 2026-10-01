@@ -120,29 +120,17 @@ function detectCategoryAndSubcategory(
     return { category: "TALLER", subcategory: "Taller 1", detected: true };
   }
 
-  // 6. TAREAS Y EJERCICIOS (Tarea 1, 2, 3, 4, Deberes, Ejercicios Extras, Proyecto)
+  // 6. TAREAS Y EJERCICIOS (Tareas, Ejercicios Extras, Guía de Problemas, Otro)
   if (
-    /\b(?:tarea|tareas|deber|deberes|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|proyecto|project)\b/.test(
+    /\b(?:tarea|tareas|deber|deberes|homework|hw|practica|laboratorio|lab|ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|guia\s+de\s+problemas|problemas\s+propuestos|problemas\s+resueltos|problemas)\b/.test(
       norm
     )
   ) {
-    if (/\b(?:proyecto|project)\b/.test(norm)) {
-      return { category: "TAREA", subcategory: "Proyecto", detected: true };
+    if (/\b(?:guia\s+de\s+problemas|guia\s+de\s+ejercicios|guia\s+de\s+estudio|problemas\s+propuestos|problemas\s+resueltos)\b/.test(norm)) {
+      return { category: "TAREA", subcategory: "Guía de Problemas", detected: true };
     }
-    if (/\b(?:ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|guia\s+de\s+ejercicios|problemas\s+propuestos|problemas\s+resueltos)\b/.test(norm)) {
+    if (/\b(?:ejercicio|ejercicios|ejercicios\s+extras|banco\s+de\s+ejercicios|banco\s+de\s+preguntas)\b/.test(norm)) {
       return { category: "TAREA", subcategory: "Ejercicios Extras", detected: true };
-    }
-    if (/\b(?:tarea\s*4|deber\s*4|hw\s*4)\b/.test(norm)) {
-      return { category: "TAREA", subcategory: "Tarea 4", detected: true };
-    }
-    if (/\b(?:tarea\s*3|deber\s*3|hw\s*3)\b/.test(norm)) {
-      return { category: "TAREA", subcategory: "Tarea 3", detected: true };
-    }
-    if (/\b(?:tarea\s*2|deber\s*2|hw\s*2)\b/.test(norm)) {
-      return { category: "TAREA", subcategory: "Tarea 2", detected: true };
-    }
-    if (/\b(?:tarea\s*1|deber\s*1|hw\s*1)\b/.test(norm)) {
-      return { category: "TAREA", subcategory: "Tarea 1", detected: true };
     }
     return { category: "TAREA", subcategory: "Tareas", detected: true };
   }
