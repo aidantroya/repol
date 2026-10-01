@@ -283,13 +283,13 @@ export function detectCategoryAndSubcategory(
     /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(
       norm
     ) ||
+    /\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(
+      norm
+    ) ||
     /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
       norm
     ) ||
     /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(
-      norm
-    ) ||
-    /\b(?:3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(
       norm
     ) ||
     /\b(?:examen\s+de\s+tercera\s+evaluacion|evaluacion\s+de\s+mejoramiento|examen\s+de\s+mejoramiento|examen\s+de\s+recuperacion|examen\s+de\s+gracia)\b/.test(
@@ -306,13 +306,13 @@ export function detectCategoryAndSubcategory(
     /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(
       norm
     ) ||
+    /\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(
+      norm
+    ) ||
     /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
       norm
     ) ||
     /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(
-      norm
-    ) ||
-    /\b(?:2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(
       norm
     ) ||
     /\b(?:examen\s+de\s+segunda\s+evaluacion|segundo\s+examen|segundo\s+parcial)\b/.test(
@@ -327,6 +327,9 @@ export function detectCategoryAndSubcategory(
   // =========================================================================
   if (
     /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i)\b/.test(
+      norm
+    ) ||
+    /\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a)\b/.test(
       norm
     ) ||
     /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(

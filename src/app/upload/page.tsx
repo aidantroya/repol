@@ -439,10 +439,10 @@ export default function UploadPage() {
 
                 // Re-alimentar automáticamente los datos si el servidor extrajo más certeza del PDF/Word
                 const updatedSubject = meta?.subjectId || q.subjectId;
-                const updatedCategory = meta?.confidence?.category ? meta.category : q.category;
-                const updatedSubcategory = meta?.confidence?.category ? meta.subcategory : q.subcategory;
-                const updatedYear = (meta?.confidence?.periodYear && meta?.periodYear) ? meta.periodYear : q.periodYear;
-                const updatedTerm = (meta?.confidence?.periodTerm && meta?.periodTerm) ? meta.periodTerm : q.periodTerm;
+                const updatedCategory = meta?.category || q.category;
+                const updatedSubcategory = meta?.subcategory || q.subcategory;
+                const updatedYear = (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : q.periodYear;
+                const updatedTerm = meta?.periodTerm || q.periodTerm;
                 const updatedIsSolution = meta?.isSolution ?? q.isSolution;
                 const updatedTitle = (meta?.suggestedTitle && (updatedCategory === "EXAMEN" || updatedCategory === "LECCION" || updatedCategory === "TALLER"))
                   ? meta.suggestedTitle
