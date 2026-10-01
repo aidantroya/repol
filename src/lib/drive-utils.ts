@@ -62,7 +62,14 @@ import { computeSemanticContentHash } from "./content-hash";
 export async function computeDriveFileHash(
   fileId: string,
   filename = ""
-): Promise<{ fileHash: string; semanticHash?: string; fileSize: number; mimeType: string }> {
+): Promise<{
+  fileHash: string;
+  semanticHash?: string;
+  fileSize: number;
+  mimeType: string;
+  rawText?: string;
+  extractedFilename?: string;
+}> {
   const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
 
   try {
@@ -79,7 +86,16 @@ export async function computeDriveFileHash(
         fileHash: fallbackHash,
         fileSize: 1024 * 1024,
         mimeType: "application/pdf",
+        rawText: "",
+        extractedFilename: filename,
       };
+    }
+
+    const disposition = res.headers.get("content-disposition") || "";
+    let extractedFilename = filename;
+    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
+    if (match && match[1]) {
+      extractedFilename = decodeURIComponent(match[1]).trim();
     }
 
     const arrayBuffer = await res.arrayBuffer();
@@ -91,15 +107,23 @@ export async function computeDriveFileHash(
 
     // Intentar calcular huella semántica si es docx o pdf
     try {
-      const semResult = await computeSemanticContentHash(buffer, filename, contentType);
+      const semResult = await computeSemanticContentHash(buffer, extractedFilename || filename, contentType);
       return {
         fileHash: semResult.contentHash || rawSha256,
         semanticHash: semResult.contentHash,
         fileSize,
         mimeType: contentType,
+        rawText: semResult.rawText || "",
+        extractedFilename,
       };
     } catch {
-      return { fileHash: rawSha256, fileSize, mimeType: contentType };
+      return {
+        fileHash: rawSha256,
+        fileSize,
+        mimeType: contentType,
+        rawText: "",
+        extractedFilename,
+      };
     }
   } catch (error) {
     console.warn("Could not stream Google Drive file directly, falling back to ID-based hash:", error);
@@ -108,6 +132,8 @@ export async function computeDriveFileHash(
       fileHash: fallbackHash,
       fileSize: 1024 * 1024,
       mimeType: "application/pdf",
+      rawText: "",
+      extractedFilename: filename,
     };
   }
 }

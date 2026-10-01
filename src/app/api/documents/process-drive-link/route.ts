@@ -54,7 +54,7 @@ export async function POST(req: Request) {
       // Procesar cada archivo dentro de la carpeta
       const processedItems = await Promise.all(
         folderFiles.map(async (file) => {
-          const { fileHash, fileSize, mimeType } = await computeDriveFileHash(file.id, file.name);
+          const { fileHash, fileSize, mimeType, rawText, extractedFilename } = await computeDriveFileHash(file.id, file.name);
 
           // Verificar si ya existe en la base de datos
           const existingDoc = await prisma.document.findFirst({
@@ -77,12 +77,13 @@ export async function POST(req: Request) {
           });
 
           const isDuplicate = Boolean(existingDoc || existingSub);
-          const combinedDriveText = `${file.folderPath || ""} ${file.name}`;
-          const detectedMetadata = detectDocumentMetadata(file.name, combinedDriveText, allSubjects);
+          const effectiveName = extractedFilename || file.name || "Documento Drive";
+          const combinedDriveText = rawText || `${file.folderPath || ""} ${effectiveName}`;
+          const detectedMetadata = detectDocumentMetadata(effectiveName, combinedDriveText, allSubjects);
 
           return {
             fileId: file.id,
-            name: file.name.replace(/\.[^/.]+$/, "") || "Documento Drive",
+            name: effectiveName.replace(/\.[^/.]+$/, "") || "Documento Drive",
             fileHash,
             fileSize: file.fileSize || fileSize,
             mimeType: file.mimeType || mimeType,
@@ -120,8 +121,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Calcular el Hash SHA-256 del documento de Drive
-    const { fileHash, fileSize, mimeType } = await computeDriveFileHash(fileId);
+    // Calcular el Hash SHA-256 del documento de Drive y extraer texto del PDF
+    const { fileHash, fileSize, mimeType, rawText, extractedFilename } = await computeDriveFileHash(fileId);
 
     // 1. Verificar si ya existe en documentos públicos
     const existingDoc = await prisma.document.findFirst({
@@ -179,14 +180,14 @@ export async function POST(req: Request) {
 
     const previewUrl = getGoogleDrivePreviewUrl(fileId);
     const downloadUrl = getGoogleDriveDownloadUrl(fileId);
-    const fileNameFallback = "Documento Google Drive";
-    const detectedMetadata = detectDocumentMetadata(fileNameFallback, "", allSubjects);
+    const fileNameFallback = extractedFilename || "Documento Google Drive";
+    const detectedMetadata = detectDocumentMetadata(fileNameFallback, rawText || "", allSubjects);
 
     return NextResponse.json({
       isFolder: false,
       exists: false,
       fileId,
-      name: fileNameFallback,
+      name: fileNameFallback.replace(/\.[^/.]+$/, "") || "Documento Drive",
       fileHash,
       fileSize,
       mimeType,

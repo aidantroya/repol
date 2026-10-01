@@ -596,9 +596,10 @@ export default function UploadPage() {
       }
 
       // Archivo único de Google Drive
-      const meta = data.detectedMetadata || detectDocumentMetadata(data.name || inputDriveUrl, "", subjectOptionsForDetection);
-      const driveCategory = meta.category || globalCategory;
-      const singleDriveTitle = (meta.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
+      const meta = data.detectedMetadata || detectDocumentMetadata(data.name || "Documento Drive", "", subjectOptionsForDetection);
+      const driveCategory = meta?.category || globalCategory;
+      const driveSubcategory = meta?.subcategory || globalSubcategory;
+      const singleDriveTitle = (meta?.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
         ? meta.suggestedTitle
         : (data.name || `Material Drive - ${new Date().toLocaleDateString()}`);
 
@@ -609,13 +610,13 @@ export default function UploadPage() {
         driveUrl: inputDriveUrl,
         title: singleDriveTitle,
         description: "",
-        subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+        subjectId: meta?.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
         category: driveCategory,
-        subcategory: meta.subcategory || globalSubcategory,
+        subcategory: driveSubcategory,
         customDescription: "",
-        periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
-        periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
-        isSolution: meta.isSolution,
+        periodYear: (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : (globalYear || new Date().getFullYear().toString()),
+        periodTerm: meta?.periodTerm || globalPeriodTerm || "1PAO",
+        isSolution: meta?.isSolution,
         fileHash: data.fileHash,
         isHashing: false,
         duplicateCheck: data.exists
