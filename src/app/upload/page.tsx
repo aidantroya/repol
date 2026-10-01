@@ -838,8 +838,8 @@ export default function UploadPage() {
               <option value="EXAMEN">Exámenes</option>
               <option value="LECCION">Lecciones</option>
               <option value="TALLER">Talleres</option>
-              <option value="TAREA">Tareas y Ejercicios</option>
               <option value="CLASE">Clases y Apuntes</option>
+              <option value="TAREA">Material de Entrenamiento</option>
             </select>
           </div>
 
@@ -1219,8 +1219,8 @@ export default function UploadPage() {
                             <option value="EXAMEN">Exámenes</option>
                             <option value="LECCION">Lecciones</option>
                             <option value="TALLER">Talleres</option>
-                            <option value="TAREA">Tareas y Ejercicios</option>
                             <option value="CLASE">Clases y Apuntes</option>
+                            <option value="TAREA">Material de Entrenamiento</option>
                           </select>
                         </div>
 

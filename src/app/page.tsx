@@ -216,8 +216,8 @@ export default function HomePage() {
             { category: "EXAMEN", label: "Exámenes", iconColor: "text-rose-400", documents: [] },
             { category: "LECCION", label: "Lecciones", iconColor: "text-amber-400", documents: [] },
             { category: "TALLER", label: "Talleres", iconColor: "text-emerald-400", documents: [] },
-            { category: "TAREA", label: "Tareas y Ejercicios", iconColor: "text-purple-400", documents: [] },
             { category: "CLASE", label: "Clases y Apuntes", iconColor: "text-blue-400", documents: [] },
+            { category: "TAREA", label: "Material de Entrenamiento", iconColor: "text-purple-400", documents: [] },
           ],
         });
       }
@@ -364,11 +364,11 @@ export default function HomePage() {
 
             {[
               { id: "", label: "Todos los Tipos" },
+              { id: "EXAMEN", label: "Exámenes" },
               { id: "LECCION", label: "Lecciones" },
               { id: "TALLER", label: "Talleres" },
-              { id: "TAREA", label: "Tareas y Ejercicios" },
-              { id: "EXAMEN", label: "Exámenes" },
               { id: "CLASE", label: "Clases y Apuntes" },
+              { id: "TAREA", label: "Material de Entrenamiento" },
             ].map((cat) => (
               <button
                 key={cat.id}

@@ -68,7 +68,7 @@ export async function GET(req: Request) {
       EXAMEN: "Exámenes",
       LECCION: "Lecciones",
       TALLER: "Talleres",
-      TAREA: "Tareas y Ejercicios",
+      TAREA: "Material de Entrenamiento",
       CLASE: "Clases y Apuntes",
     };
 

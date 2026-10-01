@@ -23,7 +23,7 @@ export function getCategoryLabel(category: string): string {
     case "TALLER":
       return "Talleres";
     case "TAREA":
-      return "Tareas y Ejercicios";
+      return "Material de Entrenamiento";
     case "EXAMEN":
       return "Exámenes";
     default:
