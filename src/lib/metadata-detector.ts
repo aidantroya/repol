@@ -86,7 +86,7 @@ export function generateCleanDocumentTitle(metadata: {
       ? metadata.periodYear
       : "";
   const termStr = metadata.periodTerm || "1PAO";
-  const periodTag = yearStr ? ` ${yearStr} - ${termStr}` : "";
+  const periodTag = yearStr ? (termStr ? ` ${yearStr} ${termStr}` : ` ${yearStr}`) : "";
 
   if (metadata.category === "EXAMEN") {
     let examName = "Examen Parcial";
