@@ -156,50 +156,48 @@ export function generateCleanDocumentTitle(metadata: {
  * Maneja todas las variaciones posibles de ordinales, números romanos, nombres y sinónimos.
  */
 export function detectCategoryAndSubcategory(
-  combinedText: string
+  combinedText: string,
+  isFilename = false
 ): { category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA"; subcategory: string; detected: boolean } {
   if (!combinedText) {
     return { category: "EXAMEN", subcategory: "Parcial", detected: false };
   }
 
   const norm = normalizeString(combinedText);
+  const isShortText = isFilename || combinedText.length < 80;
 
   // =========================================================================
-  // 1. LECCIONES (Lección 1, 2, 3, 4, Quiz, Control de Lectura, Prueba Corta, L1-L4)
+  // 1. LECCIONES (Lección 1, 2, 3, 4, Quiz, Control de Lectura, Prueba Corta)
   // =========================================================================
   const isLeccionKeyword = /\b(?:leccion|lecciones|lecc|lec|quiz|quizzes|control de lectura|prueba corta|short test|test corto)\b/.test(norm);
-  const isLShort = /\b(?:l\s*[1-4]|q\s*[1-4]|[1-4]\s*l|[1-4]\s*q)\b/.test(norm);
+  const isLShort = isShortText && /\b(?:l\s*[1-4]|q\s*[1-4])\b/.test(norm);
 
   if (isLeccionKeyword || isLShort) {
     // Lección 4 / Quiz 4 / Cuarta Lección
     if (
-      /\b(?:leccion\s*(?:4|iv|cuatro)|lec\s*4|lecc\s*4|l\s*4|4\s*l|quiz\s*(?:4|iv)|q\s*4|4\s*q|cuarta\s+leccion|4\s*ta\s+leccion|4\s*ra\s+leccion|4\s*a\s+leccion|cuarto\s+quiz|4\s*to\s+quiz|control\s*(?:4|iv)|prueba\s*4)\b/.test(
-        norm
-      )
+      /\b(?:leccion\s*(?:4|iv|cuatro)|lec\s*4|lecc\s*4|quiz\s*(?:4|iv)|cuarta\s+leccion|4\s*ta\s+leccion|4\s*ra\s+leccion|4\s*a\s+leccion|cuarto\s+quiz|4\s*to\s+quiz|control\s*(?:4|iv)|prueba\s*4)\b/.test(norm) ||
+      (isShortText && /\b(?:l\s*4|4\s*l|q\s*4|4\s*q)\b/.test(norm))
     ) {
       return { category: "LECCION", subcategory: "Lección 4", detected: true };
     }
     // Lección 3 / Quiz 3 / Tercera Lección
     if (
-      /\b(?:leccion\s*(?:3|iii|tres)|lec\s*3|lecc\s*3|l\s*3|3\s*l|quiz\s*(?:3|iii)|q\s*3|3\s*q|tercera\s+leccion|3\s*ra\s+leccion|3\s*era\s+leccion|3\s*a\s+leccion|tercer\s+quiz|3\s*er\s+quiz|control\s*(?:3|iii)|prueba\s*3)\b/.test(
-        norm
-      )
+      /\b(?:leccion\s*(?:3|iii|tres)|lec\s*3|lecc\s*3|quiz\s*(?:3|iii)|tercera\s+leccion|3\s*ra\s+leccion|3\s*era\s+leccion|3\s*a\s+leccion|tercer\s+quiz|3\s*er\s+quiz|control\s*(?:3|iii)|prueba\s*3)\b/.test(norm) ||
+      (isShortText && /\b(?:l\s*3|3\s*l|q\s*3|3\s*q)\b/.test(norm))
     ) {
       return { category: "LECCION", subcategory: "Lección 3", detected: true };
     }
     // Lección 2 / Quiz 2 / Segunda Lección
     if (
-      /\b(?:leccion\s*(?:2|ii|dos)|lec\s*2|lecc\s*2|l\s*2|2\s*l|quiz\s*(?:2|ii)|q\s*2|2\s*q|segunda\s+leccion|2\s*da\s+leccion|2\s*nda\s+leccion|2\s*a\s+leccion|segundo\s+quiz|2\s*do\s+quiz|control\s*(?:2|ii)|prueba\s*2)\b/.test(
-        norm
-      )
+      /\b(?:leccion\s*(?:2|ii|dos)|lec\s*2|lecc\s*2|quiz\s*(?:2|ii)|segunda\s+leccion|2\s*da\s+leccion|2\s*nda\s+leccion|2\s*a\s+leccion|segundo\s+quiz|2\s*do\s+quiz|control\s*(?:2|ii)|prueba\s*2)\b/.test(norm) ||
+      (isShortText && /\b(?:l\s*2|2\s*l|q\s*2|2\s*q)\b/.test(norm))
     ) {
       return { category: "LECCION", subcategory: "Lección 2", detected: true };
     }
     // Lección 1 / Quiz 1 / Primera Lección
     if (
-      /\b(?:leccion\s*(?:1|i|uno|primera)|lec\s*1|lecc\s*1|l\s*1|1\s*l|quiz\s*(?:1|i)|q\s*1|1\s*q|primera\s+leccion|1\s*ra\s+leccion|1\s*era\s+leccion|1\s*er\s+leccion|1\s*a\s+leccion|primer\s+quiz|1\s*er\s+quiz|control\s*(?:1|i)|prueba\s*1)\b/.test(
-        norm
-      )
+      /\b(?:leccion\s*(?:1|i|uno|primera)|lec\s*1|lecc\s*1|quiz\s*(?:1|i)|primera\s+leccion|1\s*ra\s+leccion|1\s*era\s+leccion|1\s*er\s+leccion|1\s*a\s+leccion|primer\s+quiz|1\s*er\s+quiz|control\s*(?:1|i)|prueba\s*1)\b/.test(norm) ||
+      (isShortText && /\b(?:l\s*1|1\s*l|q\s*1|1\s*q)\b/.test(norm))
     ) {
       return { category: "LECCION", subcategory: "Lección 1", detected: true };
     }
@@ -208,41 +206,37 @@ export function detectCategoryAndSubcategory(
   }
 
   // =========================================================================
-  // 2. TALLERES (Taller 1, 2, 3, 4, Workshop, Actividad Grupal, T1-T4)
+  // 2. TALLERES (Taller 1, 2, 3, 4, Workshop, Actividad Grupal)
   // =========================================================================
   const isTallerKeyword = /\b(?:taller|talleres|tall|workshop|workshops|actividad grupal|trabajo en clase)\b/.test(norm);
-  const isTShort = /\b(?:t\s*[1-4]|w\s*[1-4]|[1-4]\s*t|[1-4]\s*w)\b/.test(norm);
+  const isTShort = isShortText && /\b(?:t\s*[1-4]|w\s*[1-4])\b/.test(norm);
 
   if (isTallerKeyword || isTShort) {
     // Taller 4 / Cuarto Taller
     if (
-      /\b(?:taller\s*(?:4|iv|cuatro)|tall\s*4|t\s*4|4\s*t|workshop\s*4|w\s*4|4\s*w|cuarto\s+taller|4\s*to\s+taller|4\s*a\s+taller|4\s*ta\s+taller)\b/.test(
-        norm
-      )
+      /\b(?:taller\s*(?:4|iv|cuatro)|tall\s*4|workshop\s*4|cuarto\s+taller|4\s*to\s+taller|4\s*a\s+taller|4\s*ta\s+taller)\b/.test(norm) ||
+      (isShortText && /\b(?:t\s*4|4\s*t|w\s*4|4\s*w)\b/.test(norm))
     ) {
       return { category: "TALLER", subcategory: "Taller 4", detected: true };
     }
     // Taller 3 / Tercer Taller
     if (
-      /\b(?:taller\s*(?:3|iii|tres)|tall\s*3|t\s*3|3\s*t|workshop\s*3|w\s*3|3\s*w|tercer\s+taller|3\s*er\s+taller|3\s*ra\s+taller|3\s*era\s+taller|3\s*a\s+taller)\b/.test(
-        norm
-      )
+      /\b(?:taller\s*(?:3|iii|tres)|tall\s*3|workshop\s*3|tercer\s+taller|3\s*er\s+taller|3\s*ra\s+taller|3\s*era\s+taller|3\s*a\s+taller)\b/.test(norm) ||
+      (isShortText && /\b(?:t\s*3|3\s*t|w\s*3|3\s*w)\b/.test(norm))
     ) {
       return { category: "TALLER", subcategory: "Taller 3", detected: true };
     }
     // Taller 2 / Segundo Taller
     if (
-      /\b(?:taller\s*(?:2|ii|dos)|tall\s*2|t\s*2|2\s*t|workshop\s*2|w\s*2|2\s*w|segundo\s+taller|2\s*do\s+taller|2\s*da\s+taller|2\s*a\s+taller)\b/.test(
-        norm
-      )
+      /\b(?:taller\s*(?:2|ii|dos)|tall\s*2|workshop\s*2|segundo\s+taller|2\s*do\s+taller|2\s*da\s+taller|2\s*a\s+taller)\b/.test(norm) ||
+      (isShortText && /\b(?:t\s*2|2\s*t|w\s*2|2\s*w)\b/.test(norm))
     ) {
       return { category: "TALLER", subcategory: "Taller 2", detected: true };
     }
     // Taller 1 / Primer Taller
     if (
-      /\b(?:taller\s*(?:1|i|uno|primer)|tall\s*1|t\s*1|1\s*t|workshop\s*1|w\s*1|1\s*w|primer\s+taller|1\s*er\s+taller|1\s*ro\s+taller|1\s*ra\s+taller|1\s*a\s+taller)\b/.test(
-        norm
-      )
+      /\b(?:taller\s*(?:1|i|uno|primer)|tall\s*1|workshop\s*1|primer\s+taller|1\s*er\s+taller|1\s*ro\s+taller|1\s*ra\s+taller|1\s*a\s+taller)\b/.test(norm) ||
+      (isShortText && /\b(?:t\s*1|1\s*t|w\s*1|1\s*w)\b/.test(norm))
     ) {
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
@@ -251,69 +245,57 @@ export function detectCategoryAndSubcategory(
   }
 
   // =========================================================================
-  // 3. EXÁMENES Y EVALUACIONES (Evaluado antes de Tareas para no ser interceptado por "ejercicios")
+  // 3. EXÁMENES Y EVALUACIONES
   // =========================================================================
 
   // A) MEJORAMIENTO / 3RA EVALUACIÓN / 3E / RECUPERACIÓN / GRACIA
-  if (
-    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(
-      norm
-    ) ||
-    /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(
-      norm
-    ) ||
-    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
-      norm
-    ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(
-      norm
-    ) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion)\b/.test(
-      norm
-    )
-  ) {
+  const isMejoramientoExplicit =
+    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(norm) ||
+    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(norm) ||
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion)\b/.test(norm) ||
+    (isShortText && /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(norm));
+
+  if (isMejoramientoExplicit) {
     return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
   }
 
   // B) FINAL / 2DA EVALUACIÓN / 2E / 2DO PARCIAL
-  if (
-    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(
-      norm
-    ) ||
-    /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(
-      norm
-    ) ||
-    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
-      norm
-    ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(
-      norm
-    ) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(
-      norm
-    )
-  ) {
+  const isFinalExplicit =
+    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(norm) ||
+    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(norm) ||
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(norm) ||
+    (isShortText && /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(norm));
+
+  if (isFinalExplicit) {
     return { category: "EXAMEN", subcategory: "Final", detected: true };
   }
 
   // C) PARCIAL / 1RA EVALUACIÓN / 1E / 1ER PARCIAL
-  if (
-    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i)\b/.test(
-      norm
-    ) ||
-    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
-      norm
-    ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(
-      norm
-    ) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(
-      norm
-    ) ||
-    /\b(?:evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i|midterm|first exam|primer examen|1\s*er\s+examen|examen|evaluacion)\b/.test(
-      norm
-    )
-  ) {
+  const isParcialExplicit =
+    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|midterm|first exam|primer examen|1\s*er\s+examen)\b/.test(norm) ||
+    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(norm) ||
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(norm) ||
+    (isShortText && /\b(?:1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i|evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i)\b/.test(norm));
+
+  if (isParcialExplicit) {
+    return { category: "EXAMEN", subcategory: "Parcial", detected: true };
+  }
+
+  // D) Detección de EXAMEN genérico con inferencia por fecha / calendario académico ESPOL
+  const isGenericExam = /\b(?:examen|evaluacion|compromiso de honor)\b/.test(norm);
+  if (isGenericExam) {
+    if (/\b(?:septiembre|setiembre|febrero)\b/.test(norm)) {
+      return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
+    }
+    if (/\b(?:agosto|enero)\b/.test(norm)) {
+      return { category: "EXAMEN", subcategory: "Final", detected: true };
+    }
+    if (/\b(?:junio|julio|noviembre|diciembre)\b/.test(norm)) {
+      return { category: "EXAMEN", subcategory: "Parcial", detected: true };
+    }
     return { category: "EXAMEN", subcategory: "Parcial", detected: true };
   }
 
@@ -614,14 +596,14 @@ export function detectDocumentMetadata(
   const headerSample = (rawHeaderOrDocumentText || "").substring(0, 3500);
 
   // Etapa 1: Análisis del nombre del archivo
-  const fileCategory = detectCategoryAndSubcategory(cleanFilename);
+  const fileCategory = detectCategoryAndSubcategory(cleanFilename, true);
   const fileTerm = detectPeriodTerm(cleanFilename);
   const fileYear = detectPeriodYear(cleanFilename);
   const fileSubject = detectSubject(cleanFilename, subjects);
 
   // Etapa 2: Análisis del encabezado / primera página del documento
   const docCategory = headerSample
-    ? detectCategoryAndSubcategory(headerSample)
+    ? detectCategoryAndSubcategory(headerSample, false)
     : { category: "EXAMEN" as const, subcategory: "Parcial", detected: false };
   const docTerm = headerSample
     ? detectPeriodTerm(headerSample)
