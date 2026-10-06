@@ -249,7 +249,7 @@ export default function HomePage() {
   const toggleFolder = (key: string) => {
     setOpenFolders((prev) => ({
       ...prev,
-      [key]: prev[key] === undefined ? false : !prev[key],
+      [key]: !prev[key],
     }));
   };
 
@@ -588,7 +588,7 @@ export default function HomePage() {
                     <div className="p-5 sm:p-6 space-y-6 animate-in fade-in duration-200">
                       {subj.folders.map((folder) => {
                         const folderKey = `${subj.code}-${folder.category}`;
-                        const isFolderOpen = openFolders[folderKey] !== false; // Abierto por defecto
+                        const isFolderOpen = !!openFolders[folderKey]; // Cerrado por defecto
 
                         return (
                           <div
