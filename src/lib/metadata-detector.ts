@@ -78,17 +78,25 @@ export function normalizeString(str: string): string {
  */
 export function detectIsSolution(combinedText: string): boolean {
   if (!combinedText) return false;
-  const norm = normalizeString(combinedText);
+
+  // Remover el Compromiso de Honor estándar de la ESPOL para no confundir frases como:
+  // "diseñado para ser resuelto de manera individual" o "ajeno al desarrollo del examen"
+  const textWithoutHonorPledge = combinedText.replace(
+    /compromiso de honor[\s\S]*?(?:firmo|firmarlo|copiar|mediocridad)/gi,
+    " "
+  );
+
+  const norm = normalizeString(textWithoutHonorPledge);
 
   // 1. Palabras clave explícitas de solución
-  const solutionKeywords = /\b(?:sol|soluc|solucion|soluciones|solucionario|solucionarios|rubrica|rubricas|pauta|pautas|pauta de correccion|clave|claves|clave de respuestas|hoja de respuestas|respuestas correctas|banco de respuestas|resuelto|resueltos|resuelta|resueltas|resolucion|resoluciones|desarrollo|desarrollado|desarrollada|calificado|solution|solutions|solution manual|answer key|answer|answers|solved|marking scheme)\b/;
+  const solutionKeywords = /\b(?:solucion|soluciones|solucionario|solucionarios|rubrica|rubricas|pauta|pautas|pauta de correccion|clave de respuestas|hoja de respuestas|respuestas correctas|banco de respuestas|resolucion|resoluciones|solution manual|answer key|marking scheme)\b/;
   if (solutionKeywords.test(norm)) {
     return true;
   }
 
   // 2. Patrones de preguntas resueltas (ej. "Sol:", "Solución:", "Rpta:", "Rta:", "Ans:")
   const answerHeaderPattern = /(?:\bsol\s*[:\.\-]|solucion\s*[:\.\-]|rpta\s*[:\.\-]|rta\s*[:\.\-]|ans\s*[:\.\-]|resp\s*[:\.\-])/i;
-  if (answerHeaderPattern.test(combinedText)) {
+  if (answerHeaderPattern.test(textWithoutHonorPledge)) {
     return true;
   }
 
@@ -167,7 +175,47 @@ export function detectCategoryAndSubcategory(
   const isShortText = isFilename || combinedText.length < 80;
 
   // =========================================================================
-  // 1. LECCIONES (Lección 1, 2, 3, 4, Quiz, Control de Lectura, Prueba Corta)
+  // 1. EXÁMENES Y EVALUACIONES FORMALES (Prioridad principal en documentos oficiales ESPOL)
+  // =========================================================================
+
+  // A) MEJORAMIENTO / 3RA EVALUACIÓN / 3E / RECUPERACIÓN / GRACIA
+  const isMejoramientoExplicit =
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion|gracia|supletorio)\b/.test(norm) ||
+    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(norm) ||
+    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii)\b)/.test(norm) ||
+    (isShortText && /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(norm));
+
+  if (isMejoramientoExplicit) {
+    return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
+  }
+
+  // B) FINAL / 2DA EVALUACIÓN / 2E / 2DO PARCIAL
+  const isFinalExplicit =
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(norm) ||
+    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(norm) ||
+    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii)\b)/.test(norm) ||
+    (isShortText && /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(norm));
+
+  if (isFinalExplicit) {
+    return { category: "EXAMEN", subcategory: "Final", detected: true };
+  }
+
+  // C) PARCIAL / 1RA EVALUACIÓN / 1E / 1ER PARCIAL
+  const isParcialExplicit =
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(norm) ||
+    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|midterm|first exam|primer examen|1\s*er\s+examen)\b/.test(norm) ||
+    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i)\b)/.test(norm) ||
+    (isShortText && /\b(?:1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i|evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i)\b/.test(norm));
+
+  if (isParcialExplicit) {
+    return { category: "EXAMEN", subcategory: "Parcial", detected: true };
+  }
+
+  // =========================================================================
+  // 2. LECCIONES (Lección 1, 2, 3, 4, Quiz 1-4, Control de Lectura 1-4)
   // =========================================================================
   const isLeccionKeyword = /\b(?:leccion|lecciones|lecc|lec|quiz|quizzes|control de lectura|prueba corta|short test|test corto)\b/.test(norm);
   const isLShort = isShortText && /\b(?:l\s*[1-4]|q\s*[1-4])\b/.test(norm);
@@ -202,11 +250,14 @@ export function detectCategoryAndSubcategory(
       return { category: "LECCION", subcategory: "Lección 1", detected: true };
     }
 
-    return { category: "LECCION", subcategory: "Lección 1", detected: true };
+    // Solo si el texto es corto (nombre de archivo tipo "leccion.pdf") asignamos Lección 1
+    if (isShortText) {
+      return { category: "LECCION", subcategory: "Lección 1", detected: true };
+    }
   }
 
   // =========================================================================
-  // 2. TALLERES (Taller 1, 2, 3, 4, Workshop, Actividad Grupal)
+  // 3. TALLERES (Taller 1, 2, 3, 4, Workshop, Actividad Grupal)
   // =========================================================================
   const isTallerKeyword = /\b(?:taller|talleres|tall|workshop|workshops|actividad grupal|trabajo en clase)\b/.test(norm);
   const isTShort = isShortText && /\b(?:t\s*[1-4]|w\s*[1-4])\b/.test(norm);
@@ -241,50 +292,14 @@ export function detectCategoryAndSubcategory(
       return { category: "TALLER", subcategory: "Taller 1", detected: true };
     }
 
-    return { category: "TALLER", subcategory: "Taller 1", detected: true };
+    if (isShortText) {
+      return { category: "TALLER", subcategory: "Taller 1", detected: true };
+    }
   }
 
   // =========================================================================
-  // 3. EXÁMENES Y EVALUACIONES
+  // 4. EXAMEN GENÉRICO CON INFERENCIA POR CALENDARIO ACADÉMICO ESPOL
   // =========================================================================
-
-  // A) MEJORAMIENTO / 3RA EVALUACIÓN / 3E / RECUPERACIÓN / GRACIA
-  const isMejoramientoExplicit =
-    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(norm) ||
-    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(norm) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion)\b/.test(norm) ||
-    (isShortText && /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(norm));
-
-  if (isMejoramientoExplicit) {
-    return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
-  }
-
-  // B) FINAL / 2DA EVALUACIÓN / 2E / 2DO PARCIAL
-  const isFinalExplicit =
-    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(norm) ||
-    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(norm) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(norm) ||
-    (isShortText && /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(norm));
-
-  if (isFinalExplicit) {
-    return { category: "EXAMEN", subcategory: "Final", detected: true };
-  }
-
-  // C) PARCIAL / 1RA EVALUACIÓN / 1E / 1ER PARCIAL
-  const isParcialExplicit =
-    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|midterm|first exam|primer examen|1\s*er\s+examen)\b/.test(norm) ||
-    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(norm) ||
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(norm) ||
-    (isShortText && /\b(?:1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i|evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i)\b/.test(norm));
-
-  if (isParcialExplicit) {
-    return { category: "EXAMEN", subcategory: "Parcial", detected: true };
-  }
-
-  // D) Detección de EXAMEN genérico con inferencia por fecha / calendario académico ESPOL
   const isGenericExam = /\b(?:examen|evaluacion|compromiso de honor)\b/.test(norm);
   if (isGenericExam) {
     if (/\b(?:septiembre|setiembre|febrero)\b/.test(norm)) {
