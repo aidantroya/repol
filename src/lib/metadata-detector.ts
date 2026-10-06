@@ -262,16 +262,13 @@ export function detectCategoryAndSubcategory(
     /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(
       norm
     ) ||
-    /\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a)\b/.test(
+    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii|3)\b)/.test(
-      norm
-    ) ||
-    /\b(?:examen\s+de\s+tercera\s+evaluacion|evaluacion\s+de\s+mejoramiento|examen\s+de\s+mejoramiento|examen\s+de\s+recuperacion|examen\s+de\s+gracia)\b/.test(
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion)\b/.test(
       norm
     )
   ) {
@@ -286,16 +283,13 @@ export function detectCategoryAndSubcategory(
     /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(
       norm
     ) ||
-    /\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a)\b/.test(
+    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii|2)\b)/.test(
-      norm
-    ) ||
-    /\b(?:examen\s+de\s+segunda\s+evaluacion|segundo\s+examen|segundo\s+parcial)\b/.test(
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(
       norm
     )
   ) {
@@ -307,16 +301,16 @@ export function detectCategoryAndSubcategory(
     /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i)\b/.test(
       norm
     ) ||
-    /\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a)\b/.test(
+    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s*(?:evaluacion|eval|examen|parcial|ev|control|prueba)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\s+(?:evaluacion|eval|examen|parcial|ev)\b)/.test(
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(
       norm
     ) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s+(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i|1)\b)/.test(
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(
       norm
     ) ||
-    /\b(?:evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i|midterm|first exam|primer examen|1\s*er\s+examen|examen\s+de\s+primera\s+evaluacion|examen|evaluacion)\b/.test(
+    /\b(?:evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i|midterm|first exam|primer examen|1\s*er\s+examen|examen|evaluacion)\b/.test(
       norm
     )
   ) {
@@ -376,19 +370,23 @@ export function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" 
 
   const norm = normalizeString(combinedText);
 
-  // 1. Detección explícita de 1PAO / 1er Término / 1T (con números de prefijo y texto ordinal)
+  // 1. Detección explícita de 1PAO / 1er Término / 1T / I Término / I Semestre
   if (
     /\b(?:1\s*pao|i\s*pao|1\s*t|i\s*t|t\s*1|t\s*i)\b/.test(norm) ||
-    /\b(?:termino\s+(?:1|i|uno)|(?:1\s*er|1\s*ro|primer|primero|i)\s+termino|primer\s+pao|1\s*er\s+pao|1\s*era\s+pao|primer\s+periodo|i\s+periodo|primer\s+semestre|1\s*er\s+semestre|1\s*s|i\s*s)\b/.test(norm) ||
+    /\b(?:termino|termtno)\s+(?:1|i|uno)\b/.test(norm) ||
+    /\b(?:1\s*er|1\s*ro|primer|primero|i)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
+    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:primer|primero|1\s*er|1\s*ro|1|i|uno)\b/.test(norm) ||
     /\b(?:19|20)\d\d\s*[-_./]\s*(?:1|i|1pao|1t)\b/i.test(combinedText)
   ) {
     return { term: "1PAO", detected: true };
   }
 
-  // 2. Detección explícita de 2PAO / 2do Término / 2T (con números de prefijo y texto ordinal)
+  // 2. Detección explícita de 2PAO / 2do Término / 2T / II Término / II Semestre
   if (
     /\b(?:2\s*pao|ii\s*pao|2\s*t|ii\s*t|t\s*2|t\s*ii)\b/.test(norm) ||
-    /\b(?:termino\s+(?:2|ii|dos)|(?:2\s*do|2\s*da|segundo|ii)\s+termino|segundo\s+pao|2\s*do\s+pao|2\s*da\s+pao|segundo\s+periodo|ii\s+periodo|segundo\s+semestre|2\s*do\s+semestre|2\s*s|ii\s*s)\b/.test(norm) ||
+    /\b(?:termino|termtno)\s+(?:2|ii|dos)\b/.test(norm) ||
+    /\b(?:2\s*do|2\s*da|segundo|ii)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
+    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:segundo|2\s*do|2\s*da|2|ii|dos)\b/.test(norm) ||
     /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText)
   ) {
     return { term: "2PAO", detected: true };
@@ -398,7 +396,9 @@ export function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" 
   if (
     /\b(?:pae|p\s*a\s*e|intensivo|extraordinario|verano)\b/.test(norm) ||
     /\b(?:3\s*pao|iii\s*pao|3\s*t|iii\s*t|t\s*3|t\s*iii)\b/.test(norm) ||
-    /\b(?:termino\s+(?:3|iii|tres|tercero?)|(?:3\s*er|3\s*ro|tercer|tercero|iii)\s+termino|tercer\s+pao|3\s*er\s+pao|tercer\s+periodo|iii\s+periodo|3\s*er\s+semestre)\b/.test(norm) ||
+    /\b(?:termino|termtno)\s+(?:3|iii|tres|tercero?)\b/.test(norm) ||
+    /\b(?:3\s*er|3\s*ro|tercer|tercero|iii)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
+    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:tercer|tercero|3\s*er|3\s*ro|3|iii|tres|extraordinario|pae)\b/.test(norm) ||
     /\b(?:19|20)\d\d\s*[-_./]\s*(?:3|iii|pae|3t)\b/i.test(combinedText)
   ) {
     return { term: "PAE", detected: true };
@@ -497,7 +497,12 @@ export function detectSubject(
   }
 
   const norm = normalizeString(combinedText);
-  const upperRaw = combinedText.toUpperCase();
+  // Reemplazar confusiones de OCR frecuentes en códigos (ej: CCPG1O43 -> CCPG1043, MATG1OO1 -> MATG1001)
+  const upperRaw = combinedText.toUpperCase()
+    .replace(/\b([A-Z]{3,4})\s*([0-9OIl]{3,5})\b/g, (_match, p1, p2) => {
+      const fixedNums = p2.replace(/O/g, "0").replace(/[Il]/g, "1");
+      return `${p1}${fixedNums}`;
+    });
 
   // 1. Búsqueda por CÓDIGO OFICIAL ESPOL (ej: CCPG1043, MATG1001, FISG1002, FIEC04341)
   // Compara tanto la versión unida (CCPG1043) como con espacio/guión (CCPG 1043 / CCPG-1043)
@@ -560,7 +565,7 @@ export function detectSubject(
     "calculo 2": ["calculo vectorial", "calculo ii", "calculo multivariable", "vectorial", "multivariable"],
     "algebra lineal": ["algebra lineal", "lineal"],
     "ecuaciones diferenciales": ["ecuaciones diferenciales", "edo", "ecua dif", "ecuaciones dif"],
-    "estadistica": ["estadistica inferencial", "probabilidad y estadistica", "estadistica descriptiva", "probabilidad"],
+    "estadistica": ["estadistica inferencial", "probabilidad y estadistica", "estadistica descriptiva", "probabilidad", "estadistica 1", "estadistica i"],
     "matematicas discretas": ["matematicas discretas", "matematica discreta", "discretas", "estructuras discretas"],
     "fundamentos de programacion": ["fundamentos de programacion", "funda pro", "fundamentos programacion", "fundaprog"],
     "estructuras de datos": ["estructuras de datos", "estructura de datos", "ed"],

@@ -91,16 +91,17 @@ export function DocumentCard({
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      await fetch("/api/documents", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: doc.id }),
-      });
       setDownloads((prev) => prev + 1);
-      window.open(doc.fileUrl, "_blank");
+      const downloadUrl = `/api/documents/download?id=${doc.id}&download=true`;
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.setAttribute("download", `${doc.title.replace(/[^a-zA-Z0-9\s._-]/g, "_")}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch (e) {
-      console.error("Error al registrar descarga:", e);
-      window.open(doc.fileUrl, "_blank");
+      console.error("Error al descargar:", e);
+      window.location.href = `/api/documents/download?id=${doc.id}&download=true`;
     } finally {
       setIsDownloading(false);
     }

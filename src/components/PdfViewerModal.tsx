@@ -138,7 +138,13 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
           <button
             onClick={() => {
               if (onDownload) onDownload();
-              window.open(doc.fileUrl, "_blank");
+              const downloadUrl = `/api/documents/download?id=${doc.id}&download=true`;
+              const link = document.createElement("a");
+              link.href = downloadUrl;
+              link.setAttribute("download", `${doc.title.replace(/[^a-zA-Z0-9\s._-]/g, "_")}.pdf`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
             }}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition"
             title="Descargar PDF principal a tu dispositivo"
