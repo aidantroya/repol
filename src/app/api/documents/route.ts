@@ -89,6 +89,12 @@ export async function GET(req: Request) {
       orderBy,
     });
 
+    const termWeights: Record<string, number> = {
+      "2PAO": 3, "2T": 3,
+      "1PAO": 2, "1T": 2,
+      "PAE": 1, "3PAO": 1, "3T": 1, "Intensivo": 1,
+    };
+
     const sanitizedDocs = documents.map((doc) => {
       if (!isAdminOrMod) {
         return {
@@ -102,6 +108,36 @@ export async function GET(req: Request) {
       }
       return doc;
     });
+
+    // Ordenamiento cronológico preciso según el calendario académico de la ESPOL
+    if (sortParam === "year_asc") {
+      sanitizedDocs.sort((a, b) => {
+        const yearA = a.periodYear || 0;
+        const yearB = b.periodYear || 0;
+        if (yearA === 0 && yearB !== 0) return 1;
+        if (yearB === 0 && yearA !== 0) return -1;
+        if (yearA !== yearB) return yearA - yearB;
+        const termA = termWeights[a.periodTerm] ?? 0;
+        const termB = termWeights[b.periodTerm] ?? 0;
+        if (termA !== termB) return termA - termB;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    } else if (sortParam === "recent") {
+      sanitizedDocs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } else {
+      // Por defecto: year_desc (año y término más reciente primero)
+      sanitizedDocs.sort((a, b) => {
+        const yearA = a.periodYear || 0;
+        const yearB = b.periodYear || 0;
+        if (yearA === 0 && yearB !== 0) return 1;
+        if (yearB === 0 && yearA !== 0) return -1;
+        if (yearB !== yearA) return yearB - yearA;
+        const termA = termWeights[a.periodTerm] ?? 0;
+        const termB = termWeights[b.periodTerm] ?? 0;
+        if (termB !== termA) return termB - termA;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+    }
 
     return NextResponse.json({ documents: sanitizedDocs });
   } catch (error) {

@@ -64,6 +64,23 @@ export async function GET(req: Request) {
       );
     }
 
+    const termWeights: Record<string, number> = {
+      "2PAO": 3, "2T": 3,
+      "1PAO": 2, "1T": 2,
+      "PAE": 1, "3PAO": 1, "3T": 1, "Intensivo": 1,
+    };
+
+    subject.documents.sort((a, b) => {
+      const yearA = a.periodYear || 0;
+      const yearB = b.periodYear || 0;
+      if (yearA === 0 && yearB !== 0) return 1;
+      if (yearB === 0 && yearA !== 0) return -1;
+      if (yearB !== yearA) return yearB - yearA;
+      const termA = termWeights[a.periodTerm] ?? 0;
+      const termB = termWeights[b.periodTerm] ?? 0;
+      return termB - termA;
+    });
+
     const zip = new JSZip();
 
     // Carpetas principales organizadas dentro del archivo ZIP

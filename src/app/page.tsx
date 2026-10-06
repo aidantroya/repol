@@ -154,10 +154,14 @@ export default function HomePage() {
 
   // Agrupación jerárquica de documentos por Materia -> Carpetas de Categorías
   const groupedData = useMemo(() => {
+    // Orden cronológico oficial ESPOL dentro del año:
+    // 1. PAE (Extraordinario / vacaciones iniciales marzo-abril)
+    // 2. 1PAO (Primer término ordinario mayo-septiembre)
+    // 3. 2PAO (Segundo término ordinario octubre-febrero - el más reciente del año)
     const termOrder: Record<string, number> = {
-      "PAE": 3, "3PAO": 3, "3T": 3, "Intensivo": 3,
-      "2PAO": 2, "2T": 2,
-      "1PAO": 1, "1T": 1,
+      "2PAO": 3, "2T": 3,
+      "1PAO": 2, "1T": 2,
+      "PAE": 1, "3PAO": 1, "3T": 1, "Intensivo": 1,
     };
     
     // Sort comparator con soporte para año no especificado (S/F / 0)
