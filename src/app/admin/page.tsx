@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { 
   ShieldCheck, 
   Check, 
@@ -927,17 +926,11 @@ export default function AdminDashboardPage() {
 
                     {/* Info del Estudiante */}
                     <div className="flex items-center justify-between border-t border-zinc-800/80 pt-3 text-xs text-zinc-400">
-                      <div className="flex items-center gap-2">
-                        {sub.user.image ? (
-                          <Image src={sub.user.image} alt="" width={24} height={24} className="h-6 w-6 rounded-full" />
-                        ) : (
-                          <div className="h-6 w-6 rounded-full bg-zinc-800 text-center leading-6 text-[10px] font-bold">
-                            {sub.user.name?.[0] || "U"}
-                          </div>
-                        )}
-                        <span className="truncate max-w-[150px]">{sub.user.name || sub.user.email}</span>
+                      <div className="flex items-center gap-1.5 truncate max-w-[240px]">
+                        <span className="text-zinc-200 font-medium truncate">{sub.user.name || sub.user.email}</span>
+                        <span className="text-zinc-500 font-mono text-[11px] truncate">({sub.user.email})</span>
                       </div>
-                      <span className="text-[11px] text-zinc-500">
+                      <span className="text-[11px] text-zinc-500 shrink-0 font-mono">
                         {new Date(sub.createdAt).toLocaleDateString("es-EC", {
                           day: "numeric",
                           month: "short",
@@ -1014,18 +1007,9 @@ export default function AdminDashboardPage() {
                 >
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {p.user.image ? (
-                          <Image src={p.user.image} alt="" width={36} height={36} className="h-9 w-9 rounded-full" />
-                        ) : (
-                          <div className="h-9 w-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
-                            {p.user.name?.[0] || "U"}
-                          </div>
-                        )}
-                        <div>
-                          <h4 className="text-sm font-bold text-white">{p.user.name || "Estudiante ESPOL"}</h4>
-                          <p className="text-xs text-zinc-400">{p.user.email}</p>
-                        </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white">{p.user.name || "Estudiante ESPOL"}</h4>
+                        <p className="text-xs text-zinc-400">{p.user.email}</p>
                       </div>
                       <span className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-400 flex items-center gap-1">
                         <Sparkles className="h-3 w-3" /> {p.user.approvedContributions} aportes
@@ -1302,15 +1286,8 @@ export default function AdminDashboardPage() {
 
                     {/* Info de quién solicitó */}
                     <div className="flex items-center justify-between border-t border-zinc-800/80 pt-2.5 text-xs text-zinc-400">
-                      <div className="flex items-center gap-2">
-                        {req.requestedBy?.image ? (
-                          <Image src={req.requestedBy.image} alt="" width={20} height={20} className="h-5 w-5 rounded-full" />
-                        ) : (
-                          <div className="h-5 w-5 rounded-full bg-zinc-800 text-center leading-5 text-[9px] font-bold">
-                            {req.requestedBy?.name?.[0] || "M"}
-                          </div>
-                        )}
-                        <span className="truncate max-w-[150px]">
+                      <div>
+                        <span className="truncate max-w-[200px]">
                           Solicitado por: <strong className="text-zinc-300">{req.requestedBy?.name || req.requestedBy?.email}</strong>
                         </span>
                       </div>
@@ -1454,29 +1431,20 @@ export default function AdminDashboardPage() {
                     <div>
                       {/* Cabecera del Moderador */}
                       <div className="flex items-start justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-3 min-w-0">
-                          {mod.image ? (
-                            <Image src={mod.image} alt="" width={40} height={40} className="h-10 w-10 rounded-full border border-zinc-700" />
-                          ) : (
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center font-bold text-white text-sm">
-                              {mod.name?.[0] || mod.email[0].toUpperCase()}
-                            </div>
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="text-sm font-bold text-white truncate" title={mod.name || mod.email}>
-                                {mod.name || "Usuario ESPOL"}
-                              </h3>
-                              {mod.isOwner && (
-                                <span title="Owner / Administrador Principal">
-                                  <Crown className="h-4 w-4 text-amber-400 shrink-0" />
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-zinc-400 truncate" title={mod.email}>
-                              {mod.email}
-                            </p>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <h3 className="text-sm font-bold text-white truncate" title={mod.name || mod.email}>
+                              {mod.name || "Usuario ESPOL"}
+                            </h3>
+                            {mod.isOwner && (
+                              <span title="Administrador Principal">
+                                <Crown className="h-4 w-4 text-amber-400 shrink-0" />
+                              </span>
+                            )}
                           </div>
+                          <p className="text-xs text-zinc-400 truncate" title={mod.email}>
+                            {mod.email}
+                          </p>
                         </div>
 
                         <span
@@ -1486,7 +1454,7 @@ export default function AdminDashboardPage() {
                               : "bg-amber-500/10 text-amber-400 border-amber-500/30"
                           }`}
                         >
-                          {mod.isOwner ? "OWNER" : mod.role}
+                          {mod.role === "ADMIN" ? "ADMIN" : "MODERATOR"}
                         </span>
                       </div>
 
@@ -1542,20 +1510,23 @@ export default function AdminDashboardPage() {
                       </button>
 
                       {/* Selector de Rango (Solo para no-owners) */}
-                      {!mod.isOwner && (
+                      {!mod.isOwner ? (
                         <select
                           value={mod.role}
                           onChange={(e) =>
-                            handleRoleChange(mod.id, mod.name || mod.email, e.target.value as "ADMIN" | "MODERATOR" | "STUDENT")
+                            handleRoleChange(mod.id, mod.name || mod.email, e.target.value as "MODERATOR" | "STUDENT")
                           }
                           disabled={actionLoading === mod.id}
                           className="rounded-xl border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs font-semibold text-zinc-300 focus:outline-none focus:border-purple-500 cursor-pointer"
                           title="Cambiar rol del usuario"
                         >
                           <option value="MODERATOR">Moderador</option>
-                          <option value="ADMIN">Administrador</option>
                           <option value="STUDENT">Degradar a Estudiante</option>
                         </select>
+                      ) : (
+                        <span className="text-[11px] text-purple-300 font-semibold px-2 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                          Admin Único
+                        </span>
                       )}
                     </div>
                   </div>

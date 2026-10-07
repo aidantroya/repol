@@ -14,9 +14,15 @@ export async function GET() {
 
     if (session.user.role === "ADMIN") {
       const requests = await prisma.adminPromotionRequest.findMany({
+        where: {
+          status: "PENDING",
+          user: {
+            role: "STUDENT",
+          },
+        },
         include: {
           user: {
-            select: { id: true, name: true, email: true, approvedContributions: true, image: true, role: true },
+            select: { id: true, name: true, email: true, approvedContributions: true, role: true },
           },
         },
         orderBy: { createdAt: "desc" },

@@ -103,20 +103,19 @@ export function Navbar() {
                   href="/profile"
                   className="flex items-center gap-2 rounded-xl bg-zinc-900 border border-zinc-800 p-1.5 sm:px-3 sm:py-1.5 hover:border-zinc-700 transition"
                 >
-                  {user.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.image} alt={user.name || "Usuario"} className="h-7 w-7 rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-300">
-                      <UserIcon className="h-4 w-4" />
-                    </div>
-                  )}
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-300">
+                    <UserIcon className="h-4 w-4" />
+                  </div>
                   <div className="hidden lg:block text-left text-xs">
                     <div className="font-medium text-zinc-200 truncate max-w-[120px]">{user.name || user.email}</div>
                     <div className="text-[10px] text-zinc-400 flex items-center gap-1">
-                      {isAdmin ? (
+                      {user.role === "ADMIN" ? (
                         <span className="text-amber-400 font-semibold flex items-center gap-0.5">
                           <Sparkles className="h-3 w-3" /> Admin
+                        </span>
+                      ) : user.role === "MODERATOR" ? (
+                        <span className="text-indigo-400 font-semibold flex items-center gap-0.5">
+                          <ShieldCheck className="h-3 w-3" /> Moderador
                         </span>
                       ) : (
                         "Estudiante"

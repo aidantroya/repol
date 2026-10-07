@@ -133,38 +133,24 @@ export default function ProfilePage() {
       <div className="rounded-3xl border border-zinc-800 bg-gradient-to-b from-zinc-900/90 to-zinc-950 p-6 sm:p-8 backdrop-blur-sm shadow-xl">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           
-          <div className="flex items-center gap-4">
-            {user?.image ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={user.image}
-                alt={user.name || "Usuario"}
-                className="h-16 w-16 rounded-2xl border-2 border-zinc-700 object-cover shadow-md"
-              />
-            ) : (
-              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600/20 border border-blue-500/30 text-blue-400 font-bold text-xl">
-                {user?.name?.[0] || "U"}
-              </div>
-            )}
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-bold text-white">{user?.name || "Estudiante"}</h1>
-                {currentRole === "ADMIN" ? (
-                  <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Administrador Principal
-                  </span>
-                ) : currentRole === "MODERATOR" ? (
-                  <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-bold text-indigo-300">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Moderador Académico
-                  </span>
-                ) : (
-                  <span className="rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-xs font-medium text-blue-400">
-                    Estudiante Colaborador
-                  </span>
-                )}
-              </div>
-              <p className="text-xs sm:text-sm text-zinc-400 mt-0.5">{user?.email}</p>
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-bold text-white">{user?.name || "Estudiante"}</h1>
+              {currentRole === "ADMIN" ? (
+                <span className="flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-xs font-bold text-amber-400">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Administrador Principal
+                </span>
+              ) : currentRole === "MODERATOR" ? (
+                <span className="flex items-center gap-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 px-2.5 py-0.5 text-xs font-bold text-indigo-300">
+                  <ShieldCheck className="h-3.5 w-3.5" /> Moderador Académico
+                </span>
+              ) : (
+                <span className="rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-xs font-medium text-blue-400">
+                  Estudiante Colaborador
+                </span>
+              )}
             </div>
+            <p className="text-xs sm:text-sm text-zinc-400">{user?.email}</p>
           </div>
 
           <Link

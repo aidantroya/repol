@@ -29,7 +29,6 @@ export async function GET(req: Request) {
         id: true,
         name: true,
         email: true,
-        image: true,
         role: true,
         approvedContributions: true,
         createdAt: true,
@@ -122,7 +121,6 @@ export async function GET(req: Request) {
             id: true,
             name: true,
             email: true,
-            image: true,
             role: true,
           },
         },
@@ -156,7 +154,7 @@ export async function GET(req: Request) {
   }
 }
 
-// Cambiar rol de un usuario (Promover a Moderador/Admin o revertir a Estudiante)
+// Cambiar rol de un usuario (Promover a Moderador o revertir a Estudiante)
 export async function PATCH(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -178,10 +176,18 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "Usuario no encontrado." }, { status: 404 });
     }
 
-    // Proteger al Super Admin principal
+    // Proteger al Super Admin principal (Aidtroya)
     if (SUPER_ADMIN_EMAILS.includes(targetUser.email.toLowerCase()) && newRole !== "ADMIN") {
       return NextResponse.json(
-        { error: "No es posible remover los privilegios de Administrador Principal a la cuenta Owner." },
+        { error: "No es posible remover los privilegios de Administrador a la cuenta principal." },
+        { status: 400 }
+      );
+    }
+
+    // Nadie más puede ser ADMIN, solo MODERATOR o STUDENT
+    if (newRole === "ADMIN" && !SUPER_ADMIN_EMAILS.includes(targetUser.email.toLowerCase())) {
+      return NextResponse.json(
+        { error: "Solo Aidtroya puede tener el rol de Administrador. Los miembros del staff son Moderadores." },
         { status: 400 }
       );
     }
