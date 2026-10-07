@@ -96,13 +96,28 @@ export function getExtensionFromMimeOrBuffer(
     }
     // ZIP / DOCX / PPTX / XLSX (0x50 0x4B 0x03 0x04)
     if (buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) {
-      if (mimeType?.includes("wordprocessingml") || mimeType?.includes("docx") || name.toLowerCase().includes("doc")) {
+      if (
+        mimeType?.includes("wordprocessingml") ||
+        mimeType?.includes("docx") ||
+        name.toLowerCase().includes("doc") ||
+        buffer.includes(Buffer.from("word/"))
+      ) {
         return ".docx";
       }
-      if (mimeType?.includes("presentationml") || mimeType?.includes("pptx") || name.toLowerCase().includes("ppt")) {
+      if (
+        mimeType?.includes("presentationml") ||
+        mimeType?.includes("pptx") ||
+        name.toLowerCase().includes("ppt") ||
+        buffer.includes(Buffer.from("ppt/"))
+      ) {
         return ".pptx";
       }
-      if (mimeType?.includes("spreadsheetml") || mimeType?.includes("xlsx") || name.toLowerCase().includes("xls")) {
+      if (
+        mimeType?.includes("spreadsheetml") ||
+        mimeType?.includes("xlsx") ||
+        name.toLowerCase().includes("xls") ||
+        buffer.includes(Buffer.from("xl/"))
+      ) {
         return ".xlsx";
       }
       return ".zip";
@@ -187,8 +202,14 @@ export function getMimeTypeFromFilenameOrBuffer(
       return "image/jpeg";
     }
     if (buffer[0] === 0x50 && buffer[1] === 0x4B && buffer[2] === 0x03 && buffer[3] === 0x04) {
-      if (name.toLowerCase().endsWith(".docx")) {
+      if (name.toLowerCase().endsWith(".docx") || buffer.includes(Buffer.from("word/"))) {
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      }
+      if (name.toLowerCase().endsWith(".pptx") || buffer.includes(Buffer.from("ppt/"))) {
+        return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      }
+      if (name.toLowerCase().endsWith(".xlsx") || buffer.includes(Buffer.from("xl/"))) {
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
       }
       return "application/zip";
     }
