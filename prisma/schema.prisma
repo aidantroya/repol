@@ -83,6 +83,7 @@ model User {
   promotionRequests     AdminPromotionRequest[]
   reports               DocumentReport[]
   feedbacks             SiteFeedback[]
+  moderatorLogs         ModeratorLog[]           @relation("UserModeratorLogs")
 }
 
 model Account {
@@ -285,5 +286,24 @@ model SiteFeedback {
 
   @@index([type])
   @@index([status])
+}
+
+model ModeratorLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserModeratorLogs", fields: [userId], references: [id], onDelete: Cascade)
+  
+  action      String   // "SUBMISSION_APPROVED", "SUBMISSION_REJECTED", "DOCUMENT_UPDATED", "DOCUMENT_DELETED", "REPORT_RESOLVED", "REPORT_DISMISSED", "PROMOTION_APPROVED", "PROMOTION_REJECTED", "FEEDBACK_RESOLVED", "ROLE_UPDATED"
+  targetType  String   // "SUBMISSION", "DOCUMENT", "REPORT", "PROMOTION", "FEEDBACK", "USER"
+  targetId    String?
+  targetTitle String?  // Título del material o nombre del usuario afectado
+  details     String?  @db.Text // Descripción o motivo de la acción
+  metadata    Json?    // Información complementaria
+  
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
 }
 

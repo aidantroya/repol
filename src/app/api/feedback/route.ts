@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FeedbackType, FeedbackStatus } from "@prisma/client";
+import { logModeratorAction } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -108,6 +109,16 @@ export async function PATCH(req: Request) {
         status: status as FeedbackStatus,
         adminNotes: adminNotes !== undefined ? adminNotes : undefined,
       },
+    });
+
+    await logModeratorAction({
+      userId: session.user.id,
+      action: status === "RESOLVED" ? "FEEDBACK_RESOLVED" : "FEEDBACK_DISMISSED",
+      targetType: "FEEDBACK",
+      targetId: feedbackId,
+      targetTitle: updated.title,
+      details: `Marcó feedback (${updated.type}) como ${status}. Asunto: "${updated.title}"`,
+      metadata: { type: updated.type, status, adminNotes },
     });
 
     return NextResponse.json({ success: true, feedback: updated });

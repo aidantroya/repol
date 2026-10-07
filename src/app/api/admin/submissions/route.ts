@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logModeratorAction } from "@/lib/audit";
 
 // Obtener todas las solicitudes pendientes para revisión administrativa
 export async function GET(req: Request) {
@@ -79,6 +80,21 @@ export async function PATCH(req: Request) {
         },
       });
 
+      await logModeratorAction({
+        userId: session.user.id,
+        action: "SUBMISSION_REJECTED",
+        targetType: "SUBMISSION",
+        targetId: submission.id,
+        targetTitle: submission.title,
+        details: `Rechazó solicitud: "${submission.title}" en ${submission.subject.name} (${submission.subject.code}). Motivo: ${rejectionReason || "No cumple criterios"}`,
+        metadata: {
+          rejectionReason: rejectionReason || "No cumple criterios",
+          subjectCode: submission.subject.code,
+          category: submission.category,
+          authorEmail: submission.user.email,
+        },
+      });
+
       return NextResponse.json({ success: true, message: "Documento rechazado con éxito", submission: updated });
     }
 
@@ -124,6 +140,21 @@ export async function PATCH(req: Request) {
       });
 
       return { document: newDocument, submission: updatedSubmission, user: updatedUser };
+    });
+
+    await logModeratorAction({
+      userId: session.user.id,
+      action: "SUBMISSION_APPROVED",
+      targetType: "SUBMISSION",
+      targetId: submission.id,
+      targetTitle: submission.title,
+      details: `Aprobó y publicó: "${submission.title}" en ${submission.subject.name} (${submission.subject.code}) [${submission.category} - ${submission.subcategory}]`,
+      metadata: {
+        documentId: result.document.id,
+        subjectCode: submission.subject.code,
+        category: submission.category,
+        authorEmail: submission.user.email,
+      },
     });
 
     return NextResponse.json({

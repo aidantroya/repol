@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { 
   ShieldCheck, 
   Check, 
@@ -15,11 +16,19 @@ import {
   Paperclip,
   Flag,
   Trash2,
-  ExternalLink,
   Bug,
-  Lightbulb,
-  BookPlus,
-  MessageSquare
+  Users,
+  Activity,
+  History,
+  Crown,
+  Search,
+  RefreshCw,
+  Clock,
+  FileCheck,
+  FileX,
+  FileEdit,
+  ShieldAlert,
+  UserCheck
 } from "lucide-react";
 import { getCategoryBadgeColor, getCategoryLabel, formatPeriodYear, formatPeriodTerm } from "@/lib/utils";
 
@@ -158,15 +167,75 @@ interface PromotionRequest {
   };
 }
 
+interface ModeratorStats {
+  approvedSubmissions: number;
+  rejectedSubmissions: number;
+  updatedDocuments: number;
+  deletedDocuments: number;
+  resolvedReports: number;
+  totalActions: number;
+  lastActiveAt: string | null;
+}
+
+interface ModeratorUser {
+  id: string;
+  name: string | null;
+  email: string;
+  image: string | null;
+  role: "ADMIN" | "MODERATOR" | "STUDENT";
+  approvedContributions: number;
+  createdAt: string;
+  isOwner?: boolean;
+  stats: ModeratorStats;
+}
+
+interface ActivityLogItem {
+  id: string;
+  userId: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  targetTitle: string | null;
+  details: string | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: any;
+  createdAt: string;
+  user: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+    role: string;
+  };
+}
+
 export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports" | "feedback">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports" | "feedback" | "moderators">("submissions");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [promotions, setPromotions] = useState<PromotionRequest[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  
+  // Estado de Moderadores y Auditoría
+  const [moderators, setModerators] = useState<ModeratorUser[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLogItem[]>([]);
+  const [moderatorSummary, setModeratorSummary] = useState<{
+    totalStaff: number;
+    totalAdmins: number;
+    totalModerators: number;
+    totalApproved: number;
+    totalRejected: number;
+    totalUpdates: number;
+    totalDeletes: number;
+  } | null>(null);
+
+  const [selectedModeratorFilter, setSelectedModeratorFilter] = useState<string | null>(null);
+  const [selectedActionFilter, setSelectedActionFilter] = useState<string>("ALL");
+  const [searchLogQuery, setSearchLogQuery] = useState<string>("");
+
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -178,6 +247,7 @@ export default function AdminDashboardPage() {
 
   const user = session?.user;
   const isAdmin = user?.role === "ADMIN" || user?.role === "MODERATOR";
+  const isSuperAdmin = user?.role === "ADMIN" || user?.email === "aidtroya@espol.edu.ec";
 
   useEffect(() => {
     if (status === "unauthenticated" || (status === "authenticated" && !isAdmin)) {
@@ -188,22 +258,35 @@ export default function AdminDashboardPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [subRes, promRes, repRes, feedRes] = await Promise.all([
+      const requests = [
         fetch("/api/admin/submissions?status=PENDING"),
         fetch("/api/admin/promotions"),
         fetch("/api/reports?status=PENDING"),
         fetch("/api/feedback?status=PENDING"),
-      ]);
+      ];
 
-      const subData = await subRes.json();
-      const promData = await promRes.json();
-      const repData = await repRes.json();
-      const feedData = await feedRes.json();
+      // Si es SuperAdmin/Admin, cargar también estadísticas de moderadores
+      if (isSuperAdmin) {
+        requests.push(fetch("/api/admin/moderators"));
+      }
+
+      const results = await Promise.all(requests);
+      const subData = await results[0].json();
+      const promData = await results[1].json();
+      const repData = await results[2].json();
+      const feedData = await results[3].json();
 
       if (subData.submissions) setSubmissions(subData.submissions);
       if (promData.requests) setPromotions(promData.requests);
       if (repData.reports) setReports(repData.reports);
       if (feedData.feedbacks) setFeedbacks(feedData.feedbacks);
+
+      if (isSuperAdmin && results[4]) {
+        const modData = await results[4].json();
+        if (modData.moderators) setModerators(modData.moderators);
+        if (modData.activityLogs) setActivityLogs(modData.activityLogs);
+        if (modData.summary) setModeratorSummary(modData.summary);
+      }
     } catch (e) {
       console.error("Error al cargar datos de admin:", e);
     } finally {
@@ -211,11 +294,25 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const reloadModeratorsData = async () => {
+    try {
+      const res = await fetch("/api/admin/moderators");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.moderators) setModerators(data.moderators);
+        if (data.activityLogs) setActivityLogs(data.activityLogs);
+        if (data.summary) setModeratorSummary(data.summary);
+      }
+    } catch (e) {
+      console.error("Error reloading moderator logs:", e);
+    }
+  };
+
   useEffect(() => {
     if (isAdmin) {
       loadData();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isSuperAdmin]);
 
   const handleFeedbackStatus = async (feedbackId: string, newStatus: "RESOLVED" | "DISMISSED") => {
     setActionLoading(feedbackId);
@@ -227,6 +324,7 @@ export default function AdminDashboardPage() {
       });
       if (res.ok) {
         setFeedbacks((prev) => prev.filter((f) => f.id !== feedbackId));
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al actualizar feedback:", e);
@@ -255,6 +353,7 @@ export default function AdminDashboardPage() {
 
       if (delRes.ok) {
         setReports((prev) => prev.filter((r) => r.id !== reportId));
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al eliminar documento reportado:", e);
@@ -273,6 +372,7 @@ export default function AdminDashboardPage() {
       });
       if (res.ok) {
         setReports((prev) => prev.filter((r) => r.id !== reportId));
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al descartar reporte:", e);
@@ -295,6 +395,7 @@ export default function AdminDashboardPage() {
 
       if (res.ok) {
         setSubmissions((prev) => prev.filter((s) => s.id !== submissionId));
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al aprobar:", e);
@@ -322,6 +423,7 @@ export default function AdminDashboardPage() {
         setRejectModalOpen(false);
         setSelectedSubId(null);
         setRejectionReason("");
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al rechazar:", e);
@@ -341,6 +443,7 @@ export default function AdminDashboardPage() {
 
       if (res.ok) {
         setPromotions((prev) => prev.filter((p) => p.id !== requestId));
+        reloadModeratorsData();
       }
     } catch (e) {
       console.error("Error al actualizar promoción:", e);
@@ -348,6 +451,126 @@ export default function AdminDashboardPage() {
       setActionLoading(null);
     }
   };
+
+  const handleRoleChange = async (targetUserId: string, targetName: string, newRole: "ADMIN" | "MODERATOR" | "STUDENT") => {
+    if (!window.confirm(`¿Seguro que deseas cambiar el rol de ${targetName} a "${newRole}"?`)) {
+      return;
+    }
+    setActionLoading(targetUserId);
+    try {
+      const res = await fetch("/api/admin/moderators", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetUserId, newRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Rol actualizado con éxito");
+        reloadModeratorsData();
+      } else {
+        alert(data.error || "No se pudo actualizar el rol");
+      }
+    } catch (e) {
+      console.error("Error updating role:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const formatLogDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleString("es-EC", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case "SUBMISSION_APPROVED":
+        return {
+          label: "Aprobación",
+          color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+          icon: <FileCheck className="h-3.5 w-3.5" />,
+        };
+      case "SUBMISSION_REJECTED":
+        return {
+          label: "Rechazo",
+          color: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+          icon: <FileX className="h-3.5 w-3.5" />,
+        };
+      case "DOCUMENT_UPDATED":
+        return {
+          label: "Edición",
+          color: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+          icon: <FileEdit className="h-3.5 w-3.5" />,
+        };
+      case "DOCUMENT_DELETED":
+        return {
+          label: "Eliminación",
+          color: "bg-red-500/15 text-red-400 border-red-500/30",
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+        };
+      case "REPORT_RESOLVED":
+      case "REPORT_DISMISSED":
+        return {
+          label: "Reporte",
+          color: "bg-purple-500/10 text-purple-400 border-purple-500/20",
+          icon: <Flag className="h-3.5 w-3.5" />,
+        };
+      case "PROMOTION_APPROVED":
+      case "PROMOTION_REJECTED":
+        return {
+          label: "Ascenso",
+          color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+          icon: <Award className="h-3.5 w-3.5" />,
+        };
+      case "ROLE_UPDATED":
+        return {
+          label: "Gestión de Rango",
+          color: "bg-orange-500/10 text-orange-400 border-orange-500/20",
+          icon: <ShieldAlert className="h-3.5 w-3.5" />,
+        };
+      case "FEEDBACK_RESOLVED":
+      case "FEEDBACK_DISMISSED":
+        return {
+          label: "Feedback",
+          color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+          icon: <Bug className="h-3.5 w-3.5" />,
+        };
+      default:
+        return {
+          label: action,
+          color: "bg-zinc-800 text-zinc-300 border-zinc-700",
+          icon: <Activity className="h-3.5 w-3.5" />,
+        };
+    }
+  };
+
+  // Filtrado de logs
+  const filteredActivityLogs = activityLogs.filter((log) => {
+    if (selectedModeratorFilter && log.userId !== selectedModeratorFilter) {
+      return false;
+    }
+    if (selectedActionFilter !== "ALL") {
+      if (selectedActionFilter === "APPROVALS" && log.action !== "SUBMISSION_APPROVED") return false;
+      if (selectedActionFilter === "REJECTIONS" && log.action !== "SUBMISSION_REJECTED") return false;
+      if (selectedActionFilter === "EDITS" && log.action !== "DOCUMENT_UPDATED") return false;
+      if (selectedActionFilter === "DELETES" && log.action !== "DOCUMENT_DELETED") return false;
+      if (selectedActionFilter === "REPORTS" && !log.action.startsWith("REPORT_")) return false;
+    }
+    if (searchLogQuery.trim()) {
+      const q = searchLogQuery.toLowerCase();
+      const matchTitle = log.targetTitle?.toLowerCase().includes(q);
+      const matchDetails = log.details?.toLowerCase().includes(q);
+      const matchUser = log.user.name?.toLowerCase().includes(q) || log.user.email.toLowerCase().includes(q);
+      if (!matchTitle && !matchDetails && !matchUser) return false;
+    }
+    return true;
+  });
 
   if (loading) {
     return (
@@ -361,30 +584,35 @@ export default function AdminDashboardPage() {
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       
       {/* Encabezado del Panel */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-zinc-800 pb-6 mb-8">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-zinc-800 pb-6 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-400 flex items-center gap-1">
-              <ShieldCheck className="h-3.5 w-3.5" /> Moderación Central
+              <ShieldCheck className="h-3.5 w-3.5" /> Moderación Central RePol
             </span>
+            {isSuperAdmin && (
+              <span className="rounded-lg bg-purple-500/10 border border-purple-500/20 px-2.5 py-0.5 text-xs font-semibold text-purple-300 flex items-center gap-1">
+                <Crown className="h-3.5 w-3.5 text-amber-400" /> Vista Owner / Super Admin
+              </span>
+            )}
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white">Panel de Administración</h1>
           <p className="text-sm text-zinc-400">
-            Valida la calidad del material académico y gestiona las promociones de rango.
+            Valida la calidad académica, supervisa al equipo de moderación y audita la actividad en tiempo real.
           </p>
         </div>
 
-        {/* Pestañas */}
-        <div className="flex rounded-xl bg-zinc-900 p-1 border border-zinc-800">
+        {/* Pestañas de Navegación */}
+        <div className="flex flex-wrap rounded-xl bg-zinc-900 p-1 border border-zinc-800 gap-1">
           <button
             onClick={() => setActiveTab("submissions")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
               activeTab === "submissions"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "text-zinc-400 hover:text-white"
             }`}
           >
-            <span>Cola de Documentos</span>
+            <span>Cola Documentos</span>
             <span className="rounded-full bg-zinc-950 px-2 py-0.5 text-[11px] font-bold text-blue-300">
               {submissions.length}
             </span>
@@ -392,13 +620,13 @@ export default function AdminDashboardPage() {
 
           <button
             onClick={() => setActiveTab("promotions")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
               activeTab === "promotions"
                 ? "bg-amber-600 text-white shadow-md shadow-amber-500/20"
                 : "text-zinc-400 hover:text-white"
             }`}
           >
-            <span>Ascensos a Admin</span>
+            <span>Ascensos</span>
             <span className="rounded-full bg-zinc-950 px-2 py-0.5 text-[11px] font-bold text-amber-300">
               {promotions.filter((p) => p.status === "PENDING").length}
             </span>
@@ -406,7 +634,7 @@ export default function AdminDashboardPage() {
 
           <button
             onClick={() => setActiveTab("reports")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
               activeTab === "reports"
                 ? "bg-rose-600 text-white shadow-md shadow-rose-500/20"
                 : "text-zinc-400 hover:text-white"
@@ -421,18 +649,37 @@ export default function AdminDashboardPage() {
 
           <button
             onClick={() => setActiveTab("feedback")}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition ${
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
               activeTab === "feedback"
                 ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20"
                 : "text-zinc-400 hover:text-white"
             }`}
           >
             <Bug className="h-3.5 w-3.5" />
-            <span>Bugs & Sugerencias</span>
+            <span>Feedback</span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${feedbacks.length > 0 ? "bg-indigo-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
               {feedbacks.length}
             </span>
           </button>
+
+          {/* Pestaña Exclusiva para Owner / Super Admin */}
+          {isSuperAdmin && (
+            <button
+              onClick={() => setActiveTab("moderators")}
+              className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
+                activeTab === "moderators"
+                  ? "bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/25"
+                  : "text-purple-300 hover:text-white hover:bg-zinc-800/60"
+              }`}
+              title="Supervisión de Moderadores y Registro de Auditoría"
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Moderadores & Auditoría</span>
+              <span className="rounded-full bg-purple-950/80 border border-purple-500/30 px-2 py-0.5 text-[11px] font-bold text-purple-200">
+                {moderators.length}
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -498,45 +745,42 @@ export default function AdminDashboardPage() {
                       <GraduationCap className="h-4 w-4 text-blue-400 shrink-0" />
                       <span className="font-semibold text-zinc-300">{sub.subject.name}</span>
                       <span className="font-mono text-blue-400">({sub.subject.code})</span>
-                      <span>• {sub.subject.career?.name || sub.subject.careers?.[0]?.career.name || "ESPOL"}</span>
                     </div>
 
-                    {/* Info del Estudiante que subió */}
-                    <div className="flex items-center justify-between text-xs bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
-                      <div className="flex items-center gap-2 truncate">
-                        <span className="text-zinc-400">Enviado por:</span>
-                        <span className="font-medium text-white truncate">{sub.user.name || sub.user.email}</span>
+                    {/* Info del Estudiante */}
+                    <div className="flex items-center justify-between border-t border-zinc-800/80 pt-3 text-xs text-zinc-400">
+                      <div className="flex items-center gap-2">
+                        {sub.user.image ? (
+                          <Image src={sub.user.image} alt="" width={24} height={24} className="h-6 w-6 rounded-full" />
+                        ) : (
+                          <div className="h-6 w-6 rounded-full bg-zinc-800 text-center leading-6 text-[10px] font-bold">
+                            {sub.user.name?.[0] || "U"}
+                          </div>
+                        )}
+                        <span className="truncate max-w-[150px]">{sub.user.name || sub.user.email}</span>
                       </div>
-                      <span className="text-amber-400 font-semibold shrink-0">
-                        {sub.user.approvedContributions} aprobados
+                      <span className="text-[11px] text-zinc-500">
+                        {new Date(sub.createdAt).toLocaleDateString("es-EC", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
                     </div>
                   </div>
 
-                  {/* Acciones de Moderación */}
-                  <div className="mt-5 pt-4 border-t border-zinc-800 flex items-center gap-2">
+                  {/* Acciones */}
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-zinc-800/60">
                     <a
                       href={sub.fileUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-700 transition"
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-200 transition"
                     >
-                      <Eye className="h-3.5 w-3.5" />
-                      <span>Ver Archivo</span>
+                      <Eye className="h-3.5 w-3.5 text-blue-400" />
+                      <span>Previsualizar</span>
                     </a>
-
-                    <button
-                      onClick={() => handleApproveSubmission(sub.id)}
-                      disabled={actionLoading === sub.id}
-                      className="flex-1 flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow-md shadow-emerald-600/20 transition disabled:opacity-50"
-                    >
-                      {actionLoading === sub.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Check className="h-3.5 w-3.5" />
-                      )}
-                      <span>Aprobar y Publicar</span>
-                    </button>
 
                     <button
                       onClick={() => {
@@ -546,10 +790,23 @@ export default function AdminDashboardPage() {
                         setRejectModalOpen(true);
                       }}
                       disabled={actionLoading === sub.id}
-                      className="flex items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-400 transition"
+                      className="flex items-center justify-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 px-3 py-2 text-xs font-semibold text-rose-400 transition disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
                       <span>Rechazar</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleApproveSubmission(sub.id)}
+                      disabled={actionLoading === sub.id}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-500/20 transition disabled:opacity-50 active:scale-95"
+                    >
+                      {actionLoading === sub.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      <span>Aprobar</span>
                     </button>
                   </div>
                 </div>
@@ -559,295 +816,548 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* Pestaña 2: Solicitudes de Rango de Administrador */}
+      {/* Pestaña 2: Solicitudes de Ascenso */}
       {activeTab === "promotions" && (
         <div className="space-y-4">
-          {promotions.filter((p) => p.status === "PENDING").length === 0 ? (
+          {promotions.length === 0 ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
-              <Award className="h-10 w-10 text-zinc-500 mx-auto mb-3" />
-              <h3 className="text-lg font-semibold text-white">Sin solicitudes de ascenso pendientes</h3>
+              <Award className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
+              <h3 className="text-lg font-semibold text-white">No hay solicitudes de ascenso</h3>
               <p className="text-sm text-zinc-400 mt-1">
-                Los estudiantes con 10 o más documentos aprobados podrán solicitar el rango de Administrador aquí.
+                Cuando los estudiantes alcancen 10 aportes y soliciten ser moderadores, aparecerán aquí.
               </p>
             </div>
           ) : (
-            promotions
-              .filter((p) => p.status === "PENDING")
-              .map((prom) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {promotions.map((p) => (
                 <div
-                  key={prom.id}
-                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 p-5 backdrop-blur-sm"
+                  key={p.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col justify-between"
                 >
-                  <div className="flex items-start gap-3.5">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 shrink-0">
-                      <Award className="h-6 w-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-white text-base">{prom.user.name || "Estudiante"}</span>
-                        <span className="rounded-md bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[10px] font-bold text-amber-400">
-                          {prom.user.approvedContributions} Documentos Aprobados
-                        </span>
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        {p.user.image ? (
+                          <Image src={p.user.image} alt="" width={36} height={36} className="h-9 w-9 rounded-full" />
+                        ) : (
+                          <div className="h-9 w-9 rounded-full bg-zinc-800 flex items-center justify-center text-sm font-bold text-zinc-300">
+                            {p.user.name?.[0] || "U"}
+                          </div>
+                        )}
+                        <div>
+                          <h4 className="text-sm font-bold text-white">{p.user.name || "Estudiante ESPOL"}</h4>
+                          <p className="text-xs text-zinc-400">{p.user.email}</p>
+                        </div>
                       </div>
-                      <div className="text-xs text-zinc-400 mt-0.5">{prom.user.email}</div>
-                      {prom.reason && (
-                        <p className="text-xs text-zinc-300 mt-2 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
-                          &quot;{prom.reason}&quot;
-                        </p>
-                      )}
+                      <span className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 text-xs font-semibold text-amber-400 flex items-center gap-1">
+                        <Sparkles className="h-3 w-3" /> {p.user.approvedContributions} aportes
+                      </span>
+                    </div>
+
+                    <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800/80 text-xs text-zinc-300 mb-4">
+                      <span className="font-semibold text-zinc-400 block mb-1">Motivación del estudiante:</span>
+                      &quot;{p.reason || "Deseo contribuir moderando material académico de mi facultad."}&quot;
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-end sm:self-center">
+                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-800/60">
                     <button
-                      onClick={() => handlePromotionAction(prom.id, "APPROVE")}
-                      disabled={actionLoading === prom.id}
-                      className="flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 px-4 py-2 text-xs font-bold text-zinc-950 shadow-md shadow-amber-500/20 transition"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      <span>Conceder Rol Admin</span>
-                    </button>
-                    <button
-                      onClick={() => handlePromotionAction(prom.id, "REJECT")}
-                      disabled={actionLoading === prom.id}
-                      className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 transition"
+                      onClick={() => handlePromotionAction(p.id, "REJECT")}
+                      disabled={actionLoading === p.id}
+                      className="flex-1 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 py-2 text-xs font-semibold text-rose-400 transition"
                     >
                       Rechazar
                     </button>
+                    <button
+                      onClick={() => handlePromotionAction(p.id, "APPROVE")}
+                      disabled={actionLoading === p.id}
+                      className="flex-1 rounded-xl bg-amber-600 hover:bg-amber-500 py-2 text-xs font-bold text-white shadow-md shadow-amber-500/20 transition flex items-center justify-center gap-1"
+                    >
+                      {actionLoading === p.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Award className="h-3.5 w-3.5" />
+                      )}
+                      <span>Ascender a Moderador</span>
+                    </button>
                   </div>
                 </div>
-              ))
+              ))}
+            </div>
           )}
         </div>
       )}
 
-      {/* Pestaña 3: Reportes de Documentos & Solicitudes de Retiro */}
+      {/* Pestaña 3: Reportes de Documentos */}
       {activeTab === "reports" && (
-        <div>
+        <div className="space-y-4">
           {reports.length === 0 ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-400 mb-4">
-                <Check className="h-7 w-7 text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">¡No hay reportes pendientes!</h3>
+              <Flag className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
+              <h3 className="text-lg font-semibold text-white">No hay reportes pendientes</h3>
               <p className="text-sm text-zinc-400 mt-1">
-                No existen incidencias ni solicitudes de retiro sin procesar en este momento.
+                Todos los avisos de la comunidad sobre links caídos o inconsistencias están al día.
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {reports.map((rep) => {
-                const getReasonBadge = (reason: string) => {
-                  switch (reason) {
-                    case "BROKEN_LINK":
-                      return { text: "Link Caído", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30" };
-                    case "NOT_FOUND_404":
-                      return { text: "Error 404", cls: "bg-rose-500/10 text-rose-400 border-rose-500/30" };
-                    case "WRONG_CONTENT":
-                      return { text: "Contenido Incorrecto", cls: "bg-orange-500/10 text-orange-400 border-orange-500/30" };
-                    case "TAKEDOWN_REQUEST":
-                      return { text: "Solicitud de Retiro / Takedown", cls: "bg-red-500/20 text-red-300 border-red-500/40" };
-                    case "LOW_QUALITY":
-                      return { text: "Baja Calidad", cls: "bg-yellow-500/10 text-yellow-400 border-yellow-500/30" };
-                    default:
-                      return { text: "Otro Motivo", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30" };
-                  }
-                };
-
-                const badge = getReasonBadge(rep.reason);
-
-                return (
-                  <div
-                    key={rep.id}
-                    className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg backdrop-blur-sm transition hover:border-zinc-700"
-                  >
-                    <div className="space-y-2.5 flex-1 min-w-0">
-                      {/* Cabecera del reporte */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-lg border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
-                          {badge.text}
-                        </span>
-                        <span className="text-xs text-zinc-500 font-mono">
-                          {new Date(rep.createdAt).toLocaleDateString("es-EC", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {rep.reporterEmail && (
-                          <span className="text-xs text-zinc-400">
-                            Por: <span className="text-zinc-200 font-medium">{rep.reporterEmail}</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Detalles del documento afectado */}
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 space-y-1.5">
-                        <div className="flex items-center gap-2 text-xs font-medium text-blue-400">
-                          <GraduationCap className="h-3.5 w-3.5" />
-                          <span>{rep.document.subject.name} ({rep.document.subject.code})</span>
-                          <span className="text-zinc-600">•</span>
-                          <span className="text-zinc-400">{rep.document.subcategory} ({formatPeriodYear(rep.document.periodYear)}-{formatPeriodTerm(rep.document.periodTerm)})</span>
-                        </div>
-                        <h4 className="text-sm font-bold text-white truncate" title={rep.document.title}>
-                          {rep.document.title}
-                        </h4>
-                      </div>
-
-                      {/* Mensaje o motivo detallado */}
-                      {rep.details && (
-                        <div className="text-xs text-zinc-300 bg-zinc-950/50 p-2.5 rounded-xl border border-zinc-800/80">
-                          <span className="font-semibold text-zinc-400">Detalles del reporte: </span>
-                          <span className="italic text-zinc-200">&quot;{rep.details}&quot;</span>
-                        </div>
-                      )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {reports.map((rep) => (
+                <div
+                  key={rep.id}
+                  className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5 flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="rounded-lg bg-rose-500/10 border border-rose-500/20 px-2.5 py-0.5 text-xs font-semibold text-rose-400">
+                        {rep.reason}
+                      </span>
+                      <span className="text-xs text-zinc-500">
+                        {new Date(rep.createdAt).toLocaleDateString("es-EC", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
                     </div>
 
-                    {/* Botones de acción para administradores */}
-                    <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
-                      <a
-                        href={rep.document.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center gap-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 hover:text-white transition"
-                        title="Abrir enlace del documento para verificar error"
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                        <span>Ver Archivo</span>
-                      </a>
+                    <h4 className="text-sm font-bold text-white mb-1">{rep.document.title}</h4>
+                    <p className="text-xs text-zinc-400 mb-2 font-mono">
+                      {rep.document.subject.name} ({rep.document.subject.code})
+                    </p>
 
-                      <button
-                        onClick={() => handleDismissReport(rep.id)}
-                        disabled={actionLoading === rep.id}
-                        className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-300 transition"
-                        title="Descartar reporte si el documento no presenta problemas"
-                      >
-                        Descartar
-                      </button>
-
-                      <button
-                        onClick={() => handleDeleteReportDoc(rep.id, rep.document.id, rep.document.title)}
-                        disabled={actionLoading === rep.id}
-                        className="flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-rose-600/20 transition active:scale-95"
-                        title="Eliminar documento del repositorio y resolver reporte"
-                      >
-                        {actionLoading === rep.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3.5 w-3.5" />
-                        )}
-                        <span>Eliminar Doc & Resolver</span>
-                      </button>
-                    </div>
+                    {rep.details && (
+                      <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 text-xs text-zinc-300 mb-4">
+                        <span className="text-zinc-500 block mb-1">Detalles del reporte:</span>
+                        {rep.details}
+                      </div>
+                    )}
                   </div>
-                );
-              })}
+
+                  <div className="flex items-center gap-2 pt-2 border-t border-zinc-800/60">
+                    <button
+                      onClick={() => handleDismissReport(rep.id)}
+                      disabled={actionLoading === rep.id}
+                      className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 py-2 text-xs font-semibold text-zinc-300 transition"
+                    >
+                      Descartar
+                    </button>
+                    <button
+                      onClick={() => handleDeleteReportDoc(rep.id, rep.documentId, rep.document.title)}
+                      disabled={actionLoading === rep.id}
+                      className="flex-1 rounded-xl bg-rose-600 hover:bg-rose-500 py-2 text-xs font-bold text-white shadow-md shadow-rose-500/20 transition flex items-center justify-center gap-1"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Retirar Documento</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {/* Pestaña 4: Bugs, Sugerencias de Mejora y Solicitudes de Materias */}
+      {/* Pestaña 4: Feedback de la Comunidad */}
       {activeTab === "feedback" && (
-        <div>
+        <div className="space-y-4">
           {feedbacks.length === 0 ? (
             <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800 text-zinc-400 mb-4">
-                <Check className="h-7 w-7 text-emerald-400" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">¡No hay sugerencias ni bugs pendientes!</h3>
+              <Bug className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
+              <h3 className="text-lg font-semibold text-white">No hay feedback pendiente</h3>
               <p className="text-sm text-zinc-400 mt-1">
-                La comunidad universitaria no ha registrado nuevos reportes técnicos o propuestas sin atender.
+                Todas las sugerencias y reportes de error han sido atendidos.
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {feedbacks.map((item) => {
-                const getTypeBadge = (type: string) => {
-                  switch (type) {
-                    case "BUG":
-                      return { text: "Bug / Error", cls: "bg-rose-500/10 text-rose-400 border-rose-500/30", icon: Bug };
-                    case "IMPROVEMENT_SUGGESTION":
-                      return { text: "Sugerencia de Mejora", cls: "bg-amber-500/10 text-amber-400 border-amber-500/30", icon: Lightbulb };
-                    case "SUBJECT_REQUEST":
-                      return { text: "Materia Faltante", cls: "bg-blue-500/10 text-blue-400 border-blue-500/30", icon: BookPlus };
-                    default:
-                      return { text: "Otro Comentario", cls: "bg-indigo-500/10 text-indigo-400 border-indigo-500/30", icon: MessageSquare };
-                  }
-                };
+            <div className="grid grid-cols-1 gap-4">
+              {feedbacks.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-5"
+                >
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-0.5 text-xs font-semibold text-indigo-400">
+                        {item.type}
+                      </span>
+                      <span className="text-xs text-zinc-500">
+                        {new Date(item.createdAt).toLocaleDateString("es-EC", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                      {item.user && (
+                        <span className="text-xs text-zinc-400">
+                          Por: <span className="text-zinc-200 font-medium">{item.user.name || item.user.email}</span>
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-base font-bold text-white">{item.title}</h3>
+                    <p className="text-xs sm:text-sm text-zinc-300 whitespace-pre-line bg-zinc-950/60 p-3 rounded-xl border border-zinc-800/80">
+                      {item.description}
+                    </p>
+                  </div>
 
-                const badge = getTypeBadge(item.type);
-                const BadgeIcon = badge.icon;
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleFeedbackStatus(item.id, "DISMISSED")}
+                      disabled={actionLoading === item.id}
+                      className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3.5 py-2 text-xs font-semibold text-zinc-300 transition"
+                    >
+                      Descartar
+                    </button>
+                    <button
+                      onClick={() => handleFeedbackStatus(item.id, "RESOLVED")}
+                      disabled={actionLoading === item.id}
+                      className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition active:scale-95"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Marcar Resuelto</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* Pestaña 5: Supervisión de Moderadores & Auditoría (Owner / Super Admin) */}
+      {activeTab === "moderators" && isSuperAdmin && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          
+          {/* Métricas Globales del Equipo */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-purple-500/20 bg-gradient-to-br from-purple-950/40 to-zinc-900 p-5 shadow-lg">
+              <div className="flex items-center justify-between text-purple-400 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Equipo Total</span>
+                <Users className="h-4 w-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white">
+                {moderatorSummary?.totalStaff || moderators.length}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1">
+                {moderatorSummary?.totalAdmins || 0} Admins • {moderatorSummary?.totalModerators || 0} Moderadores
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-950/40 to-zinc-900 p-5 shadow-lg">
+              <div className="flex items-center justify-between text-emerald-400 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Aprobaciones</span>
+                <FileCheck className="h-4 w-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white">
+                {moderatorSummary?.totalApproved || 0}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1">Documentos verificados y publicados</div>
+            </div>
+
+            <div className="rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-950/40 to-zinc-900 p-5 shadow-lg">
+              <div className="flex items-center justify-between text-rose-400 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Rechazos</span>
+                <FileX className="h-4 w-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white">
+                {moderatorSummary?.totalRejected || 0}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1">Material filtrado por no calidad</div>
+            </div>
+
+            <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-950/40 to-zinc-900 p-5 shadow-lg">
+              <div className="flex items-center justify-between text-blue-400 mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider">Ediciones</span>
+                <FileEdit className="h-4 w-4" />
+              </div>
+              <div className="text-2xl sm:text-3xl font-black text-white">
+                {moderatorSummary?.totalUpdates || 0}
+              </div>
+              <div className="text-[11px] text-zinc-400 mt-1">Correcciones de metadatos</div>
+            </div>
+          </div>
+
+          {/* Sección 1: Directorio de Moderadores y Administradores */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-purple-400" />
+                  <span>Directorio de Moderadores y Permisos</span>
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Visualiza el rendimiento de cada miembro y gestiona sus roles.
+                </p>
+              </div>
+              <button
+                onClick={reloadModeratorsData}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold text-zinc-200 transition"
+              >
+                <RefreshCw className="h-3.5 w-3.5 text-purple-400" />
+                <span>Actualizar</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {moderators.map((mod) => {
+                const isCurrentFilter = selectedModeratorFilter === mod.id;
                 return (
                   <div
-                    key={item.id}
-                    className="flex flex-col lg:flex-row lg:items-start justify-between gap-5 rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 shadow-lg backdrop-blur-sm transition hover:border-zinc-700"
+                    key={mod.id}
+                    className={`rounded-2xl border p-5 transition flex flex-col justify-between ${
+                      isCurrentFilter
+                        ? "border-purple-500 bg-purple-950/20 shadow-xl shadow-purple-900/20 ring-1 ring-purple-500"
+                        : "border-zinc-800 bg-zinc-900/80 hover:border-zinc-700"
+                    }`}
                   >
-                    <div className="space-y-3 flex-1 min-w-0">
-                      {/* Tipo y fecha */}
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
-                          <BadgeIcon className="h-3.5 w-3.5" />
-                          <span>{badge.text}</span>
+                    <div>
+                      {/* Cabecera del Moderador */}
+                      <div className="flex items-start justify-between gap-3 mb-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {mod.image ? (
+                            <Image src={mod.image} alt="" width={40} height={40} className="h-10 w-10 rounded-full border border-zinc-700" />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-purple-700 to-indigo-600 flex items-center justify-center font-bold text-white text-sm">
+                              {mod.name?.[0] || mod.email[0].toUpperCase()}
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-bold text-white truncate" title={mod.name || mod.email}>
+                                {mod.name || "Usuario ESPOL"}
+                              </h3>
+                              {mod.isOwner && (
+                                <span title="Owner / Administrador Principal">
+                                  <Crown className="h-4 w-4 text-amber-400 shrink-0" />
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-zinc-400 truncate" title={mod.email}>
+                              {mod.email}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span
+                          className={`rounded-lg px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider shrink-0 border ${
+                            mod.role === "ADMIN"
+                              ? "bg-purple-500/10 text-purple-400 border-purple-500/30"
+                              : "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                          }`}
+                        >
+                          {mod.isOwner ? "OWNER" : mod.role}
                         </span>
-                        <span className="text-xs text-zinc-500 font-mono">
-                          {new Date(item.createdAt).toLocaleDateString("es-EC", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {(item.user || item.email) && (
-                          <span className="text-xs text-zinc-400">
-                            Por: <span className="text-zinc-200 font-medium">{item.user?.name || item.user?.email || item.email}</span>
-                          </span>
-                        )}
                       </div>
 
-                      {/* Título */}
-                      <h3 className="text-base font-bold text-white">
-                        {item.title}
-                      </h3>
+                      {/* Resumen de Acciones del Moderador */}
+                      <div className="grid grid-cols-2 gap-2 my-3 text-xs bg-zinc-950/80 p-3 rounded-xl border border-zinc-800/80">
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span className="text-zinc-500">Aprobaciones:</span>
+                          <span className="font-bold text-emerald-400">{mod.stats.approvedSubmissions}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span className="text-zinc-500">Rechazos:</span>
+                          <span className="font-bold text-rose-400">{mod.stats.rejectedSubmissions}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span className="text-zinc-500">Ediciones:</span>
+                          <span className="font-bold text-blue-400">{mod.stats.updatedDocuments}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-zinc-300">
+                          <span className="text-zinc-500">Reportes:</span>
+                          <span className="font-bold text-purple-400">{mod.stats.resolvedReports}</span>
+                        </div>
+                      </div>
 
-                      {/* Descripción */}
-                      <div className="rounded-xl border border-zinc-800 bg-zinc-950/80 p-3 text-xs sm:text-sm text-zinc-300 leading-relaxed whitespace-pre-line">
-                        {item.description}
+                      {/* Última actividad */}
+                      <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 mb-3">
+                        <Clock className="h-3 w-3 text-zinc-500" />
+                        <span>
+                          {mod.stats.lastActiveAt
+                            ? `Activo: ${formatLogDate(mod.stats.lastActiveAt)}`
+                            : "Sin actividad registrada aún"}
+                        </span>
                       </div>
                     </div>
 
-                    {/* Botones de acción */}
-                    <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
+                    {/* Botones de acción del Moderador */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-zinc-800/60">
                       <button
-                        onClick={() => handleFeedbackStatus(item.id, "DISMISSED")}
-                        disabled={actionLoading === item.id}
-                        className="rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3.5 py-2 text-xs font-semibold text-zinc-300 transition"
+                        onClick={() => {
+                          if (selectedModeratorFilter === mod.id) {
+                            setSelectedModeratorFilter(null);
+                          } else {
+                            setSelectedModeratorFilter(mod.id);
+                          }
+                        }}
+                        className={`flex-1 flex items-center justify-center gap-1.5 rounded-xl py-1.5 px-2.5 text-xs font-semibold transition ${
+                          isCurrentFilter
+                            ? "bg-purple-600 text-white shadow-md shadow-purple-600/30"
+                            : "border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 text-zinc-200"
+                        }`}
                       >
-                        Descartar
+                        <Activity className="h-3.5 w-3.5" />
+                        <span>{isCurrentFilter ? "Filtrando" : "Ver Actividad"}</span>
                       </button>
 
-                      <button
-                        onClick={() => handleFeedbackStatus(item.id, "RESOLVED")}
-                        disabled={actionLoading === item.id}
-                        className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 transition active:scale-95"
-                      >
-                        {actionLoading === item.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Check className="h-3.5 w-3.5" />
-                        )}
-                        <span>Marcar Resuelto</span>
-                      </button>
+                      {/* Selector de Rango (Solo para no-owners) */}
+                      {!mod.isOwner && (
+                        <select
+                          value={mod.role}
+                          onChange={(e) =>
+                            handleRoleChange(mod.id, mod.name || mod.email, e.target.value as "ADMIN" | "MODERATOR" | "STUDENT")
+                          }
+                          disabled={actionLoading === mod.id}
+                          className="rounded-xl border border-zinc-700 bg-zinc-800 px-2 py-1.5 text-xs font-semibold text-zinc-300 focus:outline-none focus:border-purple-500 cursor-pointer"
+                          title="Cambiar rol del usuario"
+                        >
+                          <option value="MODERATOR">Moderador</option>
+                          <option value="ADMIN">Administrador</option>
+                          <option value="STUDENT">Degradar a Estudiante</option>
+                        </select>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
-          )}
+          </div>
+
+          {/* Sección 2: Registro en Vivo de Auditoría (Audit Trail) */}
+          <div className="space-y-4 pt-4 border-t border-zinc-800">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                  <History className="h-5 w-5 text-indigo-400" />
+                  <span>Historial de Auditoría en Tiempo Real</span>
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Registro cronológico detallado de aprobaciones, rechazos, ediciones y borrados realizados por el staff.
+                </p>
+              </div>
+
+              {/* Filtro activo indicador */}
+              {selectedModeratorFilter && (
+                <div className="flex items-center gap-2 bg-purple-500/10 border border-purple-500/30 px-3 py-1 rounded-xl text-xs text-purple-300">
+                  <span>Filtrando por moderador</span>
+                  <button
+                    onClick={() => setSelectedModeratorFilter(null)}
+                    className="hover:text-white font-bold p-0.5 rounded-full hover:bg-purple-500/30"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Barra de Búsqueda y Filtros de Acción */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              {/* Buscador */}
+              <div className="relative flex-1 w-full">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Buscar en auditoría por documento, materia, moderador o motivo..."
+                  value={searchLogQuery}
+                  onChange={(e) => setSearchLogQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-purple-500"
+                />
+              </div>
+
+              {/* Filtro de Tipo de Acción */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                {[
+                  { id: "ALL", label: "Todos" },
+                  { id: "APPROVALS", label: "Aprobaciones" },
+                  { id: "REJECTIONS", label: "Rechazos" },
+                  { id: "EDITS", label: "Ediciones" },
+                  { id: "DELETES", label: "Eliminaciones" },
+                  { id: "REPORTS", label: "Reportes" },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedActionFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition ${
+                      selectedActionFilter === f.id
+                        ? "bg-purple-600 text-white shadow-md shadow-purple-600/20"
+                        : "border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Listado de Eventos de Auditoría */}
+            {filteredActivityLogs.length === 0 ? (
+              <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-10 text-center">
+                <History className="mx-auto h-10 w-10 text-zinc-600 mb-2" />
+                <h3 className="text-base font-semibold text-white">No se encontraron registros de auditoría</h3>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Ajusta los filtros o realiza nuevas acciones de moderación para visualizarlas aquí.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {filteredActivityLogs.map((log) => {
+                  const badge = getActionBadge(log.action);
+                  return (
+                    <div
+                      key={log.id}
+                      className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-zinc-800 bg-zinc-900/70 hover:bg-zinc-900 hover:border-zinc-700 transition"
+                    >
+                      <div className="flex items-start gap-3.5 min-w-0">
+                        {/* Icono de Acción */}
+                        <div
+                          className={`flex h-9 w-9 items-center justify-center rounded-xl border shrink-0 mt-0.5 ${badge.color}`}
+                        >
+                          {badge.icon}
+                        </div>
+
+                        {/* Contenido del Log */}
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badge.color}`}>
+                              {badge.label}
+                            </span>
+                            <span className="text-xs font-semibold text-white">
+                              {log.user.name || log.user.email}
+                            </span>
+                            <span className="text-[11px] text-zinc-500 font-mono">
+                              ({log.user.email})
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-zinc-300 leading-relaxed font-medium">
+                            {log.details || log.targetTitle || "Acción registrada"}
+                          </p>
+
+                          {log.metadata && typeof log.metadata === "object" && (log.metadata.rejectionReason || log.metadata.subjectCode) && (
+                            <div className="text-[11px] text-zinc-400 bg-zinc-950/70 p-2 rounded-lg border border-zinc-800/80 font-mono">
+                              {log.metadata.rejectionReason && (
+                                <div><span className="text-rose-400 font-semibold">Motivo:</span> {log.metadata.rejectionReason}</div>
+                              )}
+                              {log.metadata.subjectCode && (
+                                <div><span className="text-blue-400 font-semibold">Materia:</span> {log.metadata.subjectCode}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Timestamp */}
+                      <div className="flex items-center gap-1 text-[11px] text-zinc-500 shrink-0 self-end sm:self-center font-mono">
+                        <Clock className="h-3 w-3" />
+                        <span>{formatLogDate(log.createdAt)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

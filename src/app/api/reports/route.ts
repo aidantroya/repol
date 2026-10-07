@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ReportReason, ReportStatus } from "@prisma/client";
+import { logModeratorAction } from "@/lib/audit";
 
 export async function POST(req: Request) {
   try {
@@ -125,6 +126,23 @@ export async function PATCH(req: Request) {
       data: {
         status: status as ReportStatus,
         notes: notes !== undefined ? notes : undefined,
+      },
+      include: {
+        document: true,
+      },
+    });
+
+    await logModeratorAction({
+      userId: session.user.id,
+      action: status === "RESOLVED" ? "REPORT_RESOLVED" : "REPORT_DISMISSED",
+      targetType: "REPORT",
+      targetId: reportId,
+      targetTitle: updated.document?.title || "Reporte de Documento",
+      details: `Marcó reporte como ${status === "RESOLVED" ? "RESUELTO" : "DESESTIMADO"}. Motivo original: ${updated.reason}. ${notes ? `Notas: "${notes}"` : ""}`,
+      metadata: {
+        reportReason: updated.reason,
+        status,
+        documentId: updated.documentId,
       },
     });
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logModeratorAction } from "@/lib/audit";
 
 export async function GET(req: Request) {
   try {
@@ -181,9 +182,32 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "ID del documento requerido" }, { status: 400 });
     }
 
+    const docToDelete = await prisma.document.findUnique({
+      where: { id },
+      include: { subject: true },
+    });
+
     await prisma.document.delete({
       where: { id },
     });
+
+    if (docToDelete) {
+      await logModeratorAction({
+        userId: session.user.id,
+        action: "DOCUMENT_DELETED",
+        targetType: "DOCUMENT",
+        targetId: id,
+        targetTitle: docToDelete.title,
+        details: `Eliminó documento "${docToDelete.title}" de la materia ${docToDelete.subject.name} (${docToDelete.subject.code})`,
+        metadata: {
+          category: docToDelete.category,
+          subcategory: docToDelete.subcategory,
+          periodYear: docToDelete.periodYear,
+          periodTerm: docToDelete.periodTerm,
+          subjectCode: docToDelete.subject.code,
+        },
+      });
+    }
 
     return NextResponse.json({ success: true, message: "Documento eliminado correctamente." });
   } catch (error) {
@@ -248,6 +272,21 @@ export async function PUT(req: Request) {
         uploadedBy: {
           select: { name: true, image: true, approvedContributions: true },
         },
+      },
+    });
+
+    await logModeratorAction({
+      userId: session.user.id,
+      action: "DOCUMENT_UPDATED",
+      targetType: "DOCUMENT",
+      targetId: id,
+      targetTitle: updatedDocument.title,
+      details: `Editó documento: "${updatedDocument.title}" (${updatedDocument.subject.name} - ${updatedDocument.subject.code}) [${updatedDocument.category} - ${updatedDocument.subcategory}]`,
+      metadata: {
+        updatedFields: Object.keys(updateData),
+        periodYear: updatedDocument.periodYear,
+        periodTerm: updatedDocument.periodTerm,
+        subjectCode: updatedDocument.subject.code,
       },
     });
 

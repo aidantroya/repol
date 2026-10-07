@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logModeratorAction } from "@/lib/audit";
 
 // Obtener solicitudes de ascenso a Admin (para administradores o del usuario actual)
 export async function GET() {
@@ -137,6 +138,17 @@ export async function PATCH(req: Request) {
         where: { id: requestId },
         data: { status: "REJECTED", reviewedAt: new Date() },
       });
+
+      await logModeratorAction({
+        userId: session.user.id,
+        action: "PROMOTION_REJECTED",
+        targetType: "PROMOTION",
+        targetId: requestId,
+        targetTitle: promotion.user.name || promotion.user.email,
+        details: `Rechazó la solicitud de ascenso a moderador de ${promotion.user.name || promotion.user.email} (${promotion.user.email})`,
+        metadata: { candidateId: promotion.userId, candidateEmail: promotion.user.email },
+      });
+
       return NextResponse.json({ success: true, message: "Solicitud rechazada" });
     }
 
@@ -151,6 +163,16 @@ export async function PATCH(req: Request) {
         data: { role: "MODERATOR" },
       }),
     ]);
+
+    await logModeratorAction({
+      userId: session.user.id,
+      action: "PROMOTION_APPROVED",
+      targetType: "PROMOTION",
+      targetId: requestId,
+      targetTitle: promotion.user.name || promotion.user.email,
+      details: `Ascendió a ${promotion.user.name || promotion.user.email} (${promotion.user.email}) al rol de MODERADOR`,
+      metadata: { candidateId: promotion.userId, candidateEmail: promotion.user.email, newRole: "MODERATOR" },
+    });
 
     return NextResponse.json({
       success: true,
