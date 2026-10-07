@@ -22,7 +22,6 @@ export function Navbar() {
   const user = session?.user;
   const isAdmin = user?.role === "ADMIN" || user?.role === "MODERATOR";
   const contributions = user?.approvedContributions || 0;
-  const progressPercent = Math.min(100, Math.round((contributions / 10) * 100));
 
   return (
     <>
@@ -52,28 +51,18 @@ export function Navbar() {
           {/* Acciones principales & Perfil */}
           <div className="flex items-center gap-3">
             
-            {/* Barra de progreso de contribución si está autenticado */}
+            {/* Nivel de contribución si está autenticado */}
             {user && (
               <Link
                 href="/profile"
-                className="hidden md:flex items-center gap-3 rounded-full bg-zinc-900 border border-zinc-800 px-3.5 py-1.5 text-xs hover:border-zinc-700 transition"
-                title="Tu progreso de contribuciones para alcanzar rango de Administrador"
+                className="hidden md:flex items-center gap-2 rounded-full bg-zinc-900/90 border border-zinc-800 px-3.5 py-1.5 text-xs hover:border-zinc-700 transition"
+                title="Tus contribuciones académicas en RePol"
               >
-                <Award className={`h-4 w-4 ${contributions >= 10 ? "text-amber-400" : "text-zinc-400"}`} />
-                <div className="flex flex-col">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-zinc-300 font-medium">Nivel de Contribución:</span>
-                    <span className="font-semibold text-white">{contributions}/10</span>
-                  </div>
-                  <div className="h-1.5 w-28 rounded-full bg-zinc-800 overflow-hidden mt-0.5">
-                    <div
-                      className={`h-full transition-all duration-500 ${
-                        contributions >= 10 ? "bg-amber-400" : "bg-gradient-to-r from-blue-500 to-indigo-500"
-                      }`}
-                      style={{ width: `${progressPercent}%` }}
-                    />
-                  </div>
-                </div>
+                <Award className={`h-4 w-4 ${contributions > 0 ? "text-amber-400" : "text-zinc-400"}`} />
+                <span className="text-zinc-300 font-medium">Nivel de Contribución:</span>
+                <span className="font-bold text-white bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full text-xs border border-blue-500/30">
+                  {contributions}
+                </span>
               </Link>
             )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { 
   Search, 
   GraduationCap, 
@@ -12,7 +13,10 @@ import {
   X,
   Filter,
   FolderArchive,
-  Download
+  Download,
+  Lock,
+  Sparkles,
+  AlertCircle
 } from "lucide-react";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
@@ -35,6 +39,7 @@ interface Career {
 }
 
 export default function HomePage() {
+  const { data: session, status: authStatus } = useSession();
   const [careers, setCareers] = useState<Career[]>([]);
   const [selectedCareer, setSelectedCareer] = useState<string>("");
   const [selectedSubject, setSelectedSubject] = useState<string>("");
@@ -48,6 +53,20 @@ export default function HomePage() {
   const [viewMode, setViewMode] = useState<"folders" | "grid">("folders");
   const [openSubjects, setOpenSubjects] = useState<Record<string, boolean>>({});
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+
+  const [zipModalState, setZipModalState] = useState<{
+    open: boolean;
+    subjectName: string;
+    subjectCode: string;
+    contributions: number;
+    isUnauthenticated?: boolean;
+  }>({
+    open: false,
+    subjectName: "",
+    subjectCode: "",
+    contributions: 0,
+    isUnauthenticated: false,
+  });
 
   // Cargar lista completa de carreras
   useEffect(() => {
@@ -261,6 +280,37 @@ export default function HomePage() {
     setDocuments((prev) => prev.map((d) => (d.id === updatedDoc.id ? { ...d, ...updatedDoc } : d)));
   };
 
+  const handleDownloadSubjectZip = (codeOrSlug: string, subjectName: string, isSlug = false) => {
+    if (authStatus === "unauthenticated" || !session?.user) {
+      setZipModalState({
+        open: true,
+        subjectName,
+        subjectCode: codeOrSlug,
+        contributions: 0,
+        isUnauthenticated: true,
+      });
+      return;
+    }
+
+    const isStaff = session.user.role === "ADMIN" || session.user.role === "MODERATOR";
+    const userContributions = session.user.approvedContributions || 0;
+
+    if (!isStaff && userContributions < 3) {
+      setZipModalState({
+        open: true,
+        subjectName,
+        subjectCode: codeOrSlug,
+        contributions: userContributions,
+        isUnauthenticated: false,
+      });
+      return;
+    }
+
+    // Usuario autorizado: descargar ZIP
+    const queryParam = isSlug ? `slug=${encodeURIComponent(codeOrSlug)}` : `code=${encodeURIComponent(codeOrSlug)}`;
+    window.location.href = `/api/subjects/download-zip?${queryParam}`;
+  };
+
   return (
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10">
       
@@ -439,16 +489,18 @@ export default function HomePage() {
               </div>
             </div>
 
-            <a
-              href={`/api/subjects/download-zip?slug=${encodeURIComponent(selectedSubject)}`}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                const activeSubjObj = subjectOptions.find((s) => s.value === selectedSubject);
+                handleDownloadSubjectZip(selectedSubject, activeSubjObj?.label || "la materia seleccionada", true);
+              }}
               className="flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/25 transition active:scale-95 shrink-0"
               title="Descargar todos los documentos de esta materia en formato .zip"
             >
               <Download className="h-4 w-4" />
               <span>Descargar ZIP Completo</span>
-            </a>
+            </button>
           </div>
         )}
 
@@ -554,10 +606,10 @@ export default function HomePage() {
                   {/* Encabezado de Materia */}
                   <div
                     onClick={() => toggleSubject(subj.code)}
-                    className="flex items-center justify-between p-5 bg-zinc-900/80 hover:bg-zinc-800/60 cursor-pointer border-b border-zinc-800/80 transition"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-zinc-900/80 hover:bg-zinc-800/60 cursor-pointer border-b border-zinc-800/80 transition"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm">
+                      <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm shrink-0">
                         <BookOpen className="h-5 w-5" />
                       </div>
                       <div>
@@ -573,16 +625,32 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-zinc-400 font-medium hidden sm:inline">
-                        {isSubjOpen ? "Contraer materia" : "Expandir materia"}
-                      </span>
-                      <div className="h-8 w-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300">
-                        <ChevronRight
-                          className={`h-4 w-4 transition-transform duration-200 ${
-                            isSubjOpen ? "rotate-90" : ""
-                          }`}
-                        />
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                      {/* Botón Descargar Materia en un ZIP */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadSubjectZip(subj.code, subj.name, false);
+                        }}
+                        className="flex items-center gap-2 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 px-3.5 py-2 text-xs font-bold shadow-md transition active:scale-95 group"
+                        title={`Descargar todo el material de ${subj.name} (${subj.code}) en formato ZIP`}
+                      >
+                        <FolderArchive className="h-4 w-4 text-blue-400 group-hover:text-white" />
+                        <span>Descargar la materia en un ZIP</span>
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-zinc-400 font-medium hidden md:inline">
+                          {isSubjOpen ? "Contraer" : "Expandir"}
+                        </span>
+                        <div className="h-8 w-8 rounded-xl bg-zinc-800 flex items-center justify-center text-zinc-300">
+                          <ChevronRight
+                            className={`h-4 w-4 transition-transform duration-200 ${
+                              isSubjOpen ? "rotate-90" : ""
+                            }`}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -655,7 +723,99 @@ export default function HomePage() {
         )}
       </section>
 
+      {/* Modal de Requisito de 3 Aportes para Descarga en ZIP */}
+      {zipModalState.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md rounded-3xl border border-zinc-800 bg-zinc-950 p-6 sm:p-7 shadow-2xl space-y-5 animate-in zoom-in-95 duration-200">
+            
+            {/* Icono y Encabezado */}
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-500/25 shrink-0">
+                <FolderArchive className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {zipModalState.isUnauthenticated 
+                    ? "Inicia Sesión para Descargar en ZIP" 
+                    : "Descarga de Materia en ZIP"}
+                </h3>
+                <p className="text-xs text-blue-400 font-medium mt-0.5">
+                  Materia: {zipModalState.subjectName}
+                </p>
+              </div>
+            </div>
+
+            {/* Contenido del mensaje */}
+            {zipModalState.isUnauthenticated ? (
+              <div className="space-y-3 text-xs text-zinc-300">
+                <p>
+                  Debes iniciar sesión con tu cuenta oficial <strong>@espol.edu.ec</strong> para poder descargar la materia completa organizada en formato ZIP.
+                </p>
+                <div className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-3.5 text-blue-300 flex items-start gap-2.5">
+                  <Sparkles className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">
+                    Una vez iniciada sesión y completadas al menos <strong>3 subidas de material</strong>, tendrás acceso ilimitado a las descargas completas en ZIP categorizadas.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-xs space-y-2">
+                  <div className="flex items-center justify-between text-amber-300 font-bold text-sm">
+                    <span className="flex items-center gap-1.5">
+                      <Lock className="h-4 w-4" /> 3 Subidas Requeridas
+                    </span>
+                    <span className="bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-500/30 text-xs">
+                      {zipModalState.contributions}/3 completadas
+                    </span>
+                  </div>
+                  <p className="text-zinc-300 leading-relaxed pt-1">
+                    Para descargar toda la materia organizada en un archivo <strong>ZIP completo y categorizado</strong>, debes completar como mínimo <strong>3 subidas de material</strong> en RePol.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-3.5 text-xs text-zinc-400 flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 text-blue-400 shrink-0 mt-0.5" />
+                  <p>
+                    ¡Recuerda que puedes seguir descargando <strong>cada documento individualmente</strong> sin ningún límite! Sube tus lecciones, talleres o exámenes para desbloquear las descargas en ZIP.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Botones de Acción */}
+            <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
+              {zipModalState.isUnauthenticated ? (
+                <Link
+                  href="/auth/signin"
+                  className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition active:scale-95"
+                >
+                  <span>Iniciar Sesión</span>
+                </Link>
+              ) : (
+                <Link
+                  href="/upload"
+                  className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-500 py-2.5 text-xs font-bold text-white shadow-lg shadow-blue-500/20 transition active:scale-95"
+                >
+                  <UploadCloud className="h-4 w-4" />
+                  <span>Subir Aporte ({Math.max(0, 3 - zipModalState.contributions)} restantes)</span>
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setZipModalState((prev) => ({ ...prev, open: false }))}
+                className="w-full sm:w-auto rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 py-2.5 px-4 text-xs font-semibold text-zinc-300 transition"
+              >
+                Cerrar
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
+
 

@@ -84,6 +84,8 @@ model User {
   reports               DocumentReport[]
   feedbacks             SiteFeedback[]
   moderatorLogs         ModeratorLog[]           @relation("UserModeratorLogs")
+  requestedDeletions    DocumentDeletionRequest[] @relation("RequestedDeletions")
+  reviewedDeletions     DocumentDeletionRequest[] @relation("ReviewedDeletions")
 }
 
 model Account {
@@ -190,6 +192,7 @@ model Document {
   uploadedBy        User             @relation("UploadedDocuments", fields: [uploadedById], references: [id])
 
   reports           DocumentReport[]
+  deletionRequests  DocumentDeletionRequest[]
 
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
@@ -305,5 +308,35 @@ model ModeratorLog {
   @@index([userId])
   @@index([action])
   @@index([createdAt])
+}
+
+enum DeletionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model DocumentDeletionRequest {
+  id            String                @id @default(cuid())
+  documentId    String
+  document      Document              @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  reason        String                @db.Text
+  
+  requestedById String
+  requestedBy   User                  @relation("RequestedDeletions", fields: [requestedById], references: [id], onDelete: Cascade)
+  
+  status        DeletionRequestStatus @default(PENDING)
+  
+  reviewedById  String?
+  reviewedBy    User?                 @relation("ReviewedDeletions", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  reviewNotes   String?               @db.Text
+  
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  @@index([documentId])
+  @@index([status])
+  @@index([requestedById])
 }
 

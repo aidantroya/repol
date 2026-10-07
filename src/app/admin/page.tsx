@@ -28,7 +28,8 @@ import {
   FileX,
   FileEdit,
   ShieldAlert,
-  UserCheck
+  UserCheck,
+  AlertCircle
 } from "lucide-react";
 import { getCategoryBadgeColor, getCategoryLabel, formatPeriodYear, formatPeriodTerm } from "@/lib/utils";
 
@@ -209,15 +210,55 @@ interface ActivityLogItem {
   };
 }
 
+interface DeletionRequestItem {
+  id: string;
+  documentId: string;
+  reason: string;
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  reviewedAt?: string | null;
+  reviewNotes?: string | null;
+  createdAt: string;
+  document: {
+    id: string;
+    title: string;
+    fileUrl: string;
+    category: string;
+    subcategory: string;
+    periodYear: number;
+    periodTerm: string;
+    subject: {
+      name: string;
+      code: string;
+    };
+    uploadedBy?: {
+      name?: string | null;
+      email?: string | null;
+    };
+  };
+  requestedBy: {
+    id: string;
+    name: string | null;
+    email: string;
+    image: string | null;
+    role: string;
+  };
+  reviewedBy?: {
+    id: string;
+    name: string | null;
+    email: string;
+  } | null;
+}
+
 export default function AdminDashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports" | "feedback" | "moderators">("submissions");
+  const [activeTab, setActiveTab] = useState<"submissions" | "promotions" | "reports" | "feedback" | "moderators" | "deletion_requests">("submissions");
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [promotions, setPromotions] = useState<PromotionRequest[]>([]);
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackItem[]>([]);
+  const [deletionRequests, setDeletionRequests] = useState<DeletionRequestItem[]>([]);
   
   // Estado de Moderadores y Auditoría
   const [moderators, setModerators] = useState<ModeratorUser[]>([]);
@@ -263,6 +304,7 @@ export default function AdminDashboardPage() {
         fetch("/api/admin/promotions"),
         fetch("/api/reports?status=PENDING"),
         fetch("/api/feedback?status=PENDING"),
+        fetch("/api/admin/deletion-requests"),
       ];
 
       // Si es SuperAdmin/Admin, cargar también estadísticas de moderadores
@@ -275,14 +317,16 @@ export default function AdminDashboardPage() {
       const promData = await results[1].json();
       const repData = await results[2].json();
       const feedData = await results[3].json();
+      const delReqData = await results[4].json();
 
       if (subData.submissions) setSubmissions(subData.submissions);
       if (promData.requests) setPromotions(promData.requests);
       if (repData.reports) setReports(repData.reports);
       if (feedData.feedbacks) setFeedbacks(feedData.feedbacks);
+      if (delReqData.requests) setDeletionRequests(delReqData.requests);
 
-      if (isSuperAdmin && results[4]) {
-        const modData = await results[4].json();
+      if (isSuperAdmin && results[5]) {
+        const modData = await results[5].json();
         if (modData.moderators) setModerators(modData.moderators);
         if (modData.activityLogs) setActivityLogs(modData.activityLogs);
         if (modData.summary) setModeratorSummary(modData.summary);
@@ -308,11 +352,17 @@ export default function AdminDashboardPage() {
     }
   };
 
-  useEffect(() => {
-    if (isAdmin) {
-      loadData();
+  const loadDeletionRequests = async () => {
+    try {
+      const res = await fetch("/api/admin/deletion-requests");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.requests) setDeletionRequests(data.requests);
+      }
+    } catch (e) {
+      console.error("Error loading deletion requests:", e);
     }
-  }, [isAdmin, isSuperAdmin]);
+  };
 
   const handleFeedbackStatus = async (feedbackId: string, newStatus: "RESOLVED" | "DISMISSED") => {
     setActionLoading(feedbackId);
@@ -333,32 +383,131 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleDeleteReportDoc = async (reportId: string, docId: string, docTitle: string) => {
-    if (!window.confirm(`¿Confirmas la eliminación definitiva de "${docTitle}" y resolución del reporte?`)) {
+  useEffect(() => {
+    if (isAdmin) {
+      loadData();
+    }
+  }, [isAdmin, isSuperAdmin]);
+
+  const handleApproveDeletionRequest = async (requestId: string) => {
+    if (!window.confirm("¿Confirmas la aprobación de esta solicitud? El documento será eliminado definitivamente del repositorio.")) {
       return;
     }
-    setActionLoading(reportId);
+    setActionLoading(requestId);
     try {
-      const delRes = await fetch("/api/documents", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: docId }),
-      });
-
-      await fetch("/api/reports", {
+      const res = await fetch("/api/admin/deletion-requests", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reportId, status: "RESOLVED" }),
+        body: JSON.stringify({ requestId, action: "APPROVE" }),
       });
-
-      if (delRes.ok) {
-        setReports((prev) => prev.filter((r) => r.id !== reportId));
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Documento eliminado con éxito.");
+        setDeletionRequests((prev) => prev.filter((d) => d.id !== requestId));
         reloadModeratorsData();
+      } else {
+        alert(data.error || "No se pudo aprobar la solicitud.");
       }
     } catch (e) {
-      console.error("Error al eliminar documento reportado:", e);
+      console.error("Error approving deletion request:", e);
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handleRejectDeletionRequest = async (requestId: string) => {
+    const reviewNotes = window.prompt("Ingresa la razón del rechazo de esta solicitud de eliminación:") || "";
+    if (reviewNotes.trim().length === 0) return;
+
+    setActionLoading(requestId);
+    try {
+      const res = await fetch("/api/admin/deletion-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestId, action: "REJECT", reviewNotes: reviewNotes.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || "Solicitud rechazada con éxito.");
+        setDeletionRequests((prev) =>
+          prev.map((d) => (d.id === requestId ? { ...d, status: "REJECTED", reviewNotes: reviewNotes.trim() } : d))
+        );
+        reloadModeratorsData();
+      } else {
+        alert(data.error || "No se pudo rechazar la solicitud.");
+      }
+    } catch (e) {
+      console.error("Error rejecting deletion request:", e);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteReportDoc = async (reportId: string, docId: string, docTitle: string) => {
+    if (isSuperAdmin) {
+      if (!window.confirm(`¿Confirmas la eliminación definitiva de "${docTitle}" y resolución del reporte?`)) {
+        return;
+      }
+      setActionLoading(reportId);
+      try {
+        const delRes = await fetch("/api/documents", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: docId }),
+        });
+
+        await fetch("/api/reports", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportId, status: "RESOLVED" }),
+        });
+
+        if (delRes.ok) {
+          setReports((prev) => prev.filter((r) => r.id !== reportId));
+          reloadModeratorsData();
+        }
+      } catch (e) {
+        console.error("Error al eliminar documento reportado:", e);
+      } finally {
+        setActionLoading(null);
+      }
+    } else {
+      // Como MODERADOR: Enviar solicitud de eliminación con motivo
+      const reason = window.prompt(
+        `Como Moderador, debes justificar la eliminación de "${docTitle}" para que el Administrador la apruebe:\n\nIngresa el motivo de eliminación:`
+      );
+      if (!reason || reason.trim().length < 5) {
+        if (reason !== null) alert("Debes ingresar un motivo de al menos 5 caracteres.");
+        return;
+      }
+
+      setActionLoading(reportId);
+      try {
+        const reqRes = await fetch("/api/admin/deletion-requests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ documentId: docId, reason: reason.trim() }),
+        });
+
+        const data = await reqRes.json();
+        if (reqRes.ok) {
+          await fetch("/api/reports", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ reportId, status: "RESOLVED", notes: `Solicitud de eliminación enviada: ${reason.trim()}` }),
+          });
+
+          setReports((prev) => prev.filter((r) => r.id !== reportId));
+          alert(data.message || "Solicitud de eliminación enviada al Administrador con éxito.");
+          loadDeletionRequests();
+        } else {
+          alert(data.error || "No se pudo registrar la solicitud.");
+        }
+      } catch (e) {
+        console.error("Error al solicitar eliminación:", e);
+      } finally {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -534,6 +683,18 @@ export default function AdminDashboardPage() {
           color: "bg-orange-500/10 text-orange-400 border-orange-500/20",
           icon: <ShieldAlert className="h-3.5 w-3.5" />,
         };
+      case "DELETION_REQUEST_CREATED":
+        return {
+          label: "Solicitud Baja",
+          color: "bg-rose-500/10 text-rose-400 border-rose-500/20",
+          icon: <Trash2 className="h-3.5 w-3.5" />,
+        };
+      case "DELETION_REQUEST_REJECTED":
+        return {
+          label: "Baja Denegada",
+          color: "bg-zinc-800 text-zinc-400 border-zinc-700",
+          icon: <FileX className="h-3.5 w-3.5" />,
+        };
       case "FEEDBACK_RESOLVED":
       case "FEEDBACK_DISMISSED":
         return {
@@ -644,6 +805,23 @@ export default function AdminDashboardPage() {
             <span>Reportes</span>
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${reports.length > 0 ? "bg-rose-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
               {reports.length}
+            </span>
+          </button>
+
+          {/* Pestaña: Solicitudes de Eliminación */}
+          <button
+            onClick={() => setActiveTab("deletion_requests")}
+            className={`flex items-center gap-2 rounded-lg px-3.5 py-2 text-xs sm:text-sm font-semibold transition ${
+              activeTab === "deletion_requests"
+                ? "bg-red-700 text-white shadow-md shadow-red-700/25"
+                : "text-red-300 hover:text-white hover:bg-zinc-800/60"
+            }`}
+            title="Solicitudes de eliminación de documentos enviadas por Moderadores"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-red-400" />
+            <span>Bajas / Solicitudes</span>
+            <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${deletionRequests.filter(d => d.status === "PENDING").length > 0 ? "bg-red-500 text-white" : "bg-zinc-950 text-zinc-400"}`}>
+              {deletionRequests.filter(d => d.status === "PENDING").length}
             </span>
           </button>
 
@@ -1018,6 +1196,168 @@ export default function AdminDashboardPage() {
                       <span>Marcar Resuelto</span>
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pestaña: Solicitudes de Eliminación de Documentos */}
+      {activeTab === "deletion_requests" && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-zinc-900/60 border border-zinc-800 p-4 rounded-2xl">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-red-400" />
+                <span>Solicitudes de Eliminación de Documentos</span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                {isSuperAdmin
+                  ? "Los moderadores solicitan la baja de documentos con justificación. Solo el Administrador principal puede aprobar la eliminación definitiva."
+                  : "Historial de solicitudes de baja de documentos enviadas para la revisión del Administrador principal."}
+              </p>
+            </div>
+            <button
+              onClick={loadDeletionRequests}
+              className="flex items-center gap-1.5 self-start sm:self-auto rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-zinc-200 transition"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Actualizar</span>
+            </button>
+          </div>
+
+          {deletionRequests.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-12 text-center">
+              <Trash2 className="mx-auto h-12 w-12 text-zinc-600 mb-3" />
+              <h3 className="text-lg font-semibold text-white">No hay solicitudes de eliminación</h3>
+              <p className="text-sm text-zinc-400 mt-1">
+                Cuando los moderadores soliciten dar de baja algún documento del repositorio, aparecerán aquí.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {deletionRequests.map((req) => (
+                <div
+                  key={req.id}
+                  className={`rounded-2xl border p-5 flex flex-col justify-between transition ${
+                    req.status === "PENDING"
+                      ? "border-red-500/30 bg-zinc-900/80 shadow-lg"
+                      : "border-zinc-800 bg-zinc-900/40 opacity-80"
+                  }`}
+                >
+                  <div>
+                    {/* Header de la Solicitud */}
+                    <div className="flex items-center justify-between mb-3">
+                      <span
+                        className={`rounded-lg border px-2.5 py-0.5 text-xs font-semibold ${
+                          req.status === "PENDING"
+                            ? "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                            : req.status === "APPROVED"
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                            : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+                        }`}
+                      >
+                        {req.status === "PENDING"
+                          ? "⏳ Pendiente de Aprobación Admin"
+                          : req.status === "APPROVED"
+                          ? "✓ Eliminación Aprobada"
+                          : "✕ Solicitud Rechazada"}
+                      </span>
+                      <span className="text-xs text-zinc-500">
+                        {new Date(req.createdAt).toLocaleDateString("es-EC", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+
+                    {/* Información del Documento */}
+                    <div className="mb-3">
+                      <h4 className="text-sm font-bold text-white mb-1">{req.document?.title || "Documento"}</h4>
+                      {req.document?.subject && (
+                        <p className="text-xs text-zinc-400 font-mono">
+                          {req.document.subject.name} ({req.document.subject.code})
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Justificación del Moderador */}
+                    <div className="rounded-xl bg-zinc-950 p-3 border border-red-500/20 text-xs text-zinc-200 mb-3 space-y-1">
+                      <span className="text-red-400 font-semibold block flex items-center gap-1">
+                        <AlertCircle className="h-3.5 w-3.5" /> Motivo / Justificación del Moderador:
+                      </span>
+                      <p className="leading-relaxed whitespace-pre-line">{req.reason}</p>
+                    </div>
+
+                    {/* Notas del Administrador si ya fue revisado */}
+                    {req.reviewNotes && (
+                      <div className="rounded-xl bg-zinc-950 p-3 border border-zinc-800 text-xs text-zinc-300 mb-3">
+                        <span className="text-zinc-400 font-semibold block mb-0.5">Nota de resolución del Admin:</span>
+                        <p>{req.reviewNotes}</p>
+                      </div>
+                    )}
+
+                    {/* Info de quién solicitó */}
+                    <div className="flex items-center justify-between border-t border-zinc-800/80 pt-2.5 text-xs text-zinc-400">
+                      <div className="flex items-center gap-2">
+                        {req.requestedBy?.image ? (
+                          <Image src={req.requestedBy.image} alt="" width={20} height={20} className="h-5 w-5 rounded-full" />
+                        ) : (
+                          <div className="h-5 w-5 rounded-full bg-zinc-800 text-center leading-5 text-[9px] font-bold">
+                            {req.requestedBy?.name?.[0] || "M"}
+                          </div>
+                        )}
+                        <span className="truncate max-w-[150px]">
+                          Solicitado por: <strong className="text-zinc-300">{req.requestedBy?.name || req.requestedBy?.email}</strong>
+                        </span>
+                      </div>
+                      <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-mono text-zinc-400">
+                        {req.requestedBy?.role}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Acciones de Administrador (Solo si está PENDING y es Admin) */}
+                  {req.status === "PENDING" && isSuperAdmin && (
+                    <div className="flex items-center gap-2 pt-3 mt-3 border-t border-zinc-800/60">
+                      {req.document?.fileUrl && (
+                        <a
+                          href={req.document.fileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center justify-center gap-1 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 text-xs font-semibold text-zinc-200 transition"
+                          title="Previsualizar el documento antes de decidir"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-blue-400" />
+                          <span className="hidden sm:inline">Ver Doc</span>
+                        </a>
+                      )}
+
+                      <button
+                        onClick={() => handleRejectDeletionRequest(req.id)}
+                        disabled={actionLoading === req.id}
+                        className="flex-1 rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 py-2 text-xs font-semibold text-zinc-300 transition"
+                      >
+                        Rechazar Solicitud
+                      </button>
+
+                      <button
+                        onClick={() => handleApproveDeletionRequest(req.id)}
+                        disabled={actionLoading === req.id}
+                        className="flex-1 rounded-xl bg-red-600 hover:bg-red-500 py-2 text-xs font-bold text-white shadow-md shadow-red-600/25 transition flex items-center justify-center gap-1 active:scale-95"
+                      >
+                        {actionLoading === req.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                        <span>Aprobar y Eliminar</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

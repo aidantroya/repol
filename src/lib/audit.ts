@@ -11,6 +11,8 @@ export type ModeratorActionType =
   | "PROMOTION_REJECTED"
   | "FEEDBACK_RESOLVED"
   | "FEEDBACK_DISMISSED"
+  | "DELETION_REQUEST_CREATED"
+  | "DELETION_REQUEST_REJECTED"
   | "ROLE_UPDATED";
 
 export type ModeratorTargetType =

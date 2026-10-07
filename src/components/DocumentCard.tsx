@@ -273,6 +273,37 @@ export function DocumentCard({
                 {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </button>
             )}
+
+            {isModerator && (
+              <button
+                onClick={async () => {
+                  const reason = window.prompt(`Como Moderador, justifica el motivo para dar de baja "${doc.title}":`);
+                  if (!reason || reason.trim().length < 5) {
+                    if (reason !== null) alert("Debes ingresar una justificación de al menos 5 caracteres.");
+                    return;
+                  }
+                  try {
+                    const res = await fetch("/api/admin/deletion-requests", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ documentId: doc.id, reason: reason.trim() }),
+                    });
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert(data.message || "Solicitud de eliminación enviada al Administrador con éxito.");
+                    } else {
+                      alert(data.error || "Error al registrar la solicitud.");
+                    }
+                  } catch (e) {
+                    console.error("Error al solicitar baja:", e);
+                  }
+                }}
+                className="flex items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 p-2 text-rose-400 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition"
+                title="Solicitar baja de documento al Administrador (Moderador)"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
           </div>
         </div>
       </div>

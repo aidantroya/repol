@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import JSZip from "jszip";
 import { 
@@ -26,6 +28,45 @@ export const maxDuration = 60;
 
 export async function GET(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: "Debes iniciar sesión con tu cuenta institucional @espol.edu.ec para descargar la materia completa en formato ZIP." },
+        { status: 401 }
+      );
+    }
+
+    const isStaff = session.user.role === "ADMIN" || session.user.role === "MODERATOR";
+
+    if (!isStaff) {
+      const dbUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { approvedContributions: true },
+      });
+      const totalSubmissions = await prisma.submission.count({
+        where: { userId: session.user.id },
+      });
+      const approvedSubmissions = await prisma.submission.count({
+        where: { userId: session.user.id, status: "APPROVED" },
+      });
+      const effectiveContributions = Math.max(
+        dbUser?.approvedContributions || 0,
+        approvedSubmissions,
+        totalSubmissions
+      );
+
+      if (effectiveContributions < 3) {
+        return NextResponse.json(
+          {
+            error: `Para descargar la materia completa en formato ZIP debes haber completado al menos 3 subidas de material en RePol (actualmente tienes ${effectiveContributions}/3). Puedes descargar cada documento individualmente o contribuir subiendo exámenes o lecciones para desbloquear las descargas en ZIP.`,
+            contributions: effectiveContributions,
+            required: 3,
+          },
+          { status: 403 }
+        );
+      }
+    }
+
     const { searchParams } = new URL(req.url);
     const subjectId = searchParams.get("subjectId");
     const subjectSlug = searchParams.get("slug");

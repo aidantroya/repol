@@ -171,6 +171,12 @@ export async function DELETE(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user || session.user.role !== "ADMIN") {
+      if (session?.user?.role === "MODERATOR") {
+        return NextResponse.json(
+          { error: "Los moderadores no pueden borrar documentos directamente. Debes enviar una solicitud de eliminación con su respectiva justificación para que el Administrador la apruebe." },
+          { status: 403 }
+        );
+      }
       return NextResponse.json(
         { error: "Acceso denegado: Solo el Administrador principal puede eliminar documentos del repositorio." },
         { status: 403 }
