@@ -50,7 +50,6 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
 
   const [sortBy, setSortBy] = useState<string>("year_desc");
-  const [viewMode, setViewMode] = useState<"folders" | "grid">("folders");
   const [openSubjects, setOpenSubjects] = useState<Record<string, boolean>>({});
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
 
@@ -265,7 +264,7 @@ export default function HomePage() {
   const toggleSubject = (code: string) => {
     setOpenSubjects((prev) => ({
       ...prev,
-      [code]: prev[code] === undefined ? false : !prev[code],
+      [code]: !prev[code],
     }));
   };
 
@@ -529,34 +528,6 @@ export default function HomePage() {
               </select>
             </div>
 
-            {/* Alternador de Modo de Vista */}
-            <div className="flex items-center rounded-xl bg-zinc-900 p-1 border border-zinc-800">
-              <button
-                onClick={() => setViewMode("folders")}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                  viewMode === "folders"
-                    ? "bg-blue-600 text-white shadow"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-                title="Vista jerárquica por Materias y Carpetas"
-              >
-                <FolderArchive className="h-3.5 w-3.5" />
-                <span>Por Carpetas</span>
-              </button>
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                  viewMode === "grid"
-                    ? "bg-blue-600 text-white shadow"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-                title="Vista de cuadrícula directa"
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>Cuadrícula</span>
-              </button>
-            </div>
-
             <Link
               href="/upload"
               className="flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-blue-300 transition pl-1"
@@ -593,11 +564,11 @@ export default function HomePage() {
               <span>Contribuir Material</span>
             </Link>
           </div>
-        ) : viewMode === "folders" ? (
+        ) : (
           /* =================== VISTA POR MATERIAS Y CARPETAS =================== */
-          <div className="space-y-8">
+          <div className="space-y-6">
             {groupedData.map((subj) => {
-              const isSubjOpen = openSubjects[subj.code] !== false; // Abierto por defecto
+              const isSubjOpen = Boolean(openSubjects[subj.code]); // Cerrado por defecto
               return (
                 <div
                   key={subj.code}
@@ -606,7 +577,9 @@ export default function HomePage() {
                   {/* Encabezado de Materia */}
                   <div
                     onClick={() => toggleSubject(subj.code)}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-zinc-900/80 hover:bg-zinc-800/60 cursor-pointer border-b border-zinc-800/80 transition"
+                    className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 bg-zinc-900/80 hover:bg-zinc-800/60 cursor-pointer ${
+                      isSubjOpen ? "border-b border-zinc-800/80" : ""
+                    } transition`}
                   >
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 font-bold text-sm shrink-0">
@@ -670,7 +643,9 @@ export default function HomePage() {
                             {/* Barra de la Carpeta */}
                             <div
                               onClick={() => toggleFolder(folderKey)}
-                              className="flex items-center justify-between px-4 py-3 bg-zinc-900/60 hover:bg-zinc-800/40 cursor-pointer border-b border-zinc-800/60 transition"
+                              className={`flex items-center justify-between px-4 py-3 bg-zinc-900/60 hover:bg-zinc-800/40 cursor-pointer ${
+                                isFolderOpen ? "border-b border-zinc-800/60" : ""
+                              } transition`}
                             >
                               <div className="flex items-center gap-2.5">
                                 <FolderArchive className={`h-4 w-4 ${folder.iconColor}`} />
@@ -712,13 +687,6 @@ export default function HomePage() {
                 </div>
               );
             })}
-          </div>
-        ) : (
-          /* =================== VISTA DE CUADRÍCULA ESTÁNDAR =================== */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {documents.map((doc) => (
-              <DocumentCard key={doc.id} doc={doc} onUpdated={handleDocUpdated} />
-            ))}
           </div>
         )}
       </section>
