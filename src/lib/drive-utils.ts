@@ -215,6 +215,34 @@ export async function downloadDriveFileBuffer(fileId: string): Promise<Buffer | 
  * Descarga el flujo de bytes del archivo público de Google Drive para calcular su firma SHA-256
  * y huella de contenido semántico
  */
+/**
+ * Extrae el nombre real del archivo de Google Drive desde la página web pública de vista previa
+ */
+export async function extractDriveTitleFromViewPage(fileId: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://drive.google.com/file/d/${fileId}/view`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      },
+    });
+    if (res.ok) {
+      const html = await res.text();
+      const ogMatch = html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i);
+      if (ogMatch && ogMatch[1] && ogMatch[1].trim() && !ogMatch[1].includes("Google Drive")) {
+        return ogMatch[1].trim();
+      }
+      const titleMatch = html.match(/<title>([^<]+)\s*-\s*Google\s*Drive<\/title>/i);
+      if (titleMatch && titleMatch[1] && titleMatch[1].trim()) {
+        return titleMatch[1].trim();
+      }
+    }
+  } catch (err) {
+    console.warn(`Error extracting title from drive view page for ${fileId}:`, err);
+  }
+  return null;
+}
+
 export async function computeDriveFileHash(
   fileId: string,
   filename = ""
@@ -228,7 +256,8 @@ export async function computeDriveFileHash(
 }> {
   try {
     const meta = await getDriveFileMetadata(fileId);
-    const effectiveFilename = meta?.name || filename;
+    const pageTitle = !meta?.name ? await extractDriveTitleFromViewPage(fileId) : null;
+    const effectiveFilename = meta?.name || pageTitle || filename || "Documento Drive";
     let mimeType = meta?.mimeType || "application/pdf";
 
     const buffer = await downloadDriveFileBuffer(fileId);

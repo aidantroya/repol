@@ -570,6 +570,9 @@ export function detectSubject(
     "redes": ["redes de comunicacion", "redes de computadoras", "redes"],
     "sistemas operativos": ["sistemas operativos", "so", "sist operativos"],
     "bases de datos": ["sistemas de bases de datos", "base de datos", "bases de datos", "bd"],
+    "sistemas digitales": ["sistemas digitales", "sistemas digitales 1", "sistemas digitales i", "sistemas digitales 2", "sistemas digitales ii", "digitales 1", "digitales i", "sis digitales", "digitales"],
+    "circuitos electricos": ["circuitos electricos", "circuitos 1", "circuitos i", "analisis de circuitos"],
+    "electronica": ["electronica 1", "electronica i", "electronica basica", "dispositivos electronicos"],
     "quimica general": ["quimica general", "quimica 1", "quimica basica"],
   };
 

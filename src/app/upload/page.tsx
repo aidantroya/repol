@@ -369,8 +369,8 @@ export default function UploadPage() {
 
       // 1. Detección inteligente preliminar e instantánea en el cliente por nombre de archivo
       const detected = detectDocumentMetadata(currentFile.name, "", subjectOptionsForDetection);
-      const initialCategory = detected.confidence.category ? detected.category : globalCategory;
-      const initialSubcategory = detected.confidence.category ? detected.subcategory : globalSubcategory;
+      const initialCategory = detected.confidence.category ? detected.category : "EXAMEN";
+      const initialSubcategory = detected.confidence.category ? detected.subcategory : "Parcial";
       const initialTitle = (detected.suggestedTitle && (initialCategory === "EXAMEN" || initialCategory === "LECCION" || initialCategory === "TALLER"))
         ? detected.suggestedTitle
         : cleanName;
@@ -385,10 +385,10 @@ export default function UploadPage() {
         category: initialCategory,
         subcategory: initialSubcategory,
         customDescription: "",
-        periodYear: (detected.periodYear && detected.periodYear !== "S/F")
+        periodYear: (detected.periodYear && detected.periodYear !== "S/F" && detected.periodYear !== "0")
           ? detected.periodYear
-          : (detected.confidence.periodYear ? "S/F" : (globalYear || new Date().getFullYear().toString())),
-        periodTerm: detected.confidence.periodTerm ? detected.periodTerm : (globalPeriodTerm || "1PAO"),
+          : "S/F",
+        periodTerm: detected.confidence.periodTerm ? detected.periodTerm : "1PAO",
         isSolution: detected.isSolution,
         fileHash: "",
         isHashing: true,
