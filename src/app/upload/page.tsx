@@ -207,9 +207,6 @@ export default function UploadPage() {
         const data = await res.json();
         if (data.careers) {
           setCareers(data.careers);
-          if (data.careers.length > 0 && data.careers[0].subjects.length > 0) {
-            setGlobalSubjectId(data.careers[0].subjects[0].id);
-          }
         }
       } catch (e) {
         console.error("Error al cargar materias:", e);
@@ -384,7 +381,7 @@ export default function UploadPage() {
         file: currentFile,
         title: initialTitle,
         description: "",
-        subjectId: detected.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+        subjectId: detected.subjectId || "",
         category: initialCategory,
         subcategory: initialSubcategory,
         customDescription: "",
@@ -534,9 +531,6 @@ export default function UploadPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           driveUrl: inputDriveUrl,
-          subjectId: globalSubjectId || allSubjectOptions[0]?.value || "",
-          category: "LECCION",
-          subcategory: "Lección 1",
         }),
       });
 
@@ -552,7 +546,7 @@ export default function UploadPage() {
         // Carpeta de Google Drive: agregar todos los archivos contenidos como ítems individuales
         const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem & { detectedMetadata?: DetectedDocumentMetadata }, idx: number) => {
           const meta = item.detectedMetadata || detectDocumentMetadata(`${item.folderPath || ""} ${item.name}`, "", subjectOptionsForDetection);
-          const itemCat = meta.category || globalCategory;
+          const itemCat = meta.category || "EXAMEN";
           const driveTitle = (meta.suggestedTitle && (itemCat === "EXAMEN" || itemCat === "LECCION" || itemCat === "TALLER"))
             ? meta.suggestedTitle
             : (item.name || `Documento ${idx + 1}`);
@@ -563,12 +557,12 @@ export default function UploadPage() {
             driveUrl: item.fileUrl,
             title: driveTitle,
             description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
-            subjectId: meta.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+            subjectId: meta.subjectId || "",
             category: itemCat,
-            subcategory: meta.subcategory || globalSubcategory,
+            subcategory: meta.subcategory || "Parcial",
             customDescription: "",
-            periodYear: meta.periodYear || globalYear || new Date().getFullYear().toString(),
-            periodTerm: meta.periodTerm || globalPeriodTerm || "1PAO",
+            periodYear: (meta.periodYear && meta.periodYear !== "S/F" && meta.periodYear !== "0") ? meta.periodYear : "S/F",
+            periodTerm: meta.periodTerm || "1PAO",
             isSolution: meta.isSolution,
             fileHash: item.fileHash,
             isHashing: false,
@@ -598,8 +592,8 @@ export default function UploadPage() {
 
       // Archivo único de Google Drive
       const meta = data.detectedMetadata || detectDocumentMetadata(data.name || "Documento Drive", "", subjectOptionsForDetection);
-      const driveCategory = meta?.category || globalCategory;
-      const driveSubcategory = meta?.subcategory || globalSubcategory;
+      const driveCategory = meta?.category || "EXAMEN";
+      const driveSubcategory = meta?.subcategory || "Parcial";
       const singleDriveTitle = (meta?.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
         ? meta.suggestedTitle
         : (data.name || `Material Drive - ${new Date().toLocaleDateString()}`);
@@ -611,12 +605,12 @@ export default function UploadPage() {
         driveUrl: inputDriveUrl,
         title: singleDriveTitle,
         description: "",
-        subjectId: meta?.subjectId || globalSubjectId || allSubjectOptions[0]?.value || "",
+        subjectId: meta?.subjectId || "",
         category: driveCategory,
         subcategory: driveSubcategory,
         customDescription: "",
-        periodYear: (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : (globalYear || new Date().getFullYear().toString()),
-        periodTerm: meta?.periodTerm || globalPeriodTerm || "1PAO",
+        periodYear: (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : "S/F",
+        periodTerm: meta?.periodTerm || "1PAO",
         isSolution: meta?.isSolution,
         fileHash: data.fileHash,
         isHashing: false,
@@ -912,6 +906,14 @@ export default function UploadPage() {
         updateQueueItem(item.id, {
           status: "error",
           errorMessage: "Documento duplicado detectado.",
+        });
+        continue;
+      }
+
+      if (!item.subjectId) {
+        updateQueueItem(item.id, {
+          status: "error",
+          errorMessage: "Debes seleccionar una materia para este documento o aplicarla con la configuración de lotes.",
         });
         continue;
       }
