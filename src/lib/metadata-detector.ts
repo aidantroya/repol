@@ -180,11 +180,11 @@ export function detectCategoryAndSubcategory(
 
   // A) MEJORAMIENTO / 3RA EVALUACIÓN / 3E / RECUPERACIÓN / GRACIA
   const isMejoramientoExplicit =
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*er|3\s*ro|3|iii|mejoramiento|recuperacion|gracia|supletorio)\b/.test(norm) ||
-    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam)\b/.test(norm) ||
-    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|iii)\b)/.test(norm) ||
-    (isShortText && /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(norm));
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|3\s*p|3|iii|mejoramiento|recuperacion|gracia|supletorio)\b/.test(norm) ||
+    /\b(?:mejoramiento|mejora|recuperacion|gracia|supletorio|remedial|subsanacion|makeup exam|improvement exam|third exam|evaluacion\s*3\s*p|examen\s*3\s*p|eval\s*3\s*p)\b/.test(norm) ||
+    /(?:\b(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|3\s*p|iii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:tercera|tercer|tercero|3\s*ra|3\s*era|3\s*er|3\s*ro|3\s*a|3\s*p|iii)\b)/.test(norm) ||
+    /\b(?:3\s*e|e\s*3|3\s*p|p\s*3|3\s*er\s*p|3\s*ro\s*p|3\s*era\s*p|parcial\s*3|parcial\s*iii|evaluacion\s*3|evaluacion\s*iii|eval\s*3|eval\s*iii|examen\s*3|examen\s*iii)\b/.test(norm);
 
   if (isMejoramientoExplicit) {
     return { category: "EXAMEN", subcategory: "Mejoramiento", detected: true };
@@ -192,23 +192,23 @@ export function detectCategoryAndSubcategory(
 
   // B) FINAL / 2DA EVALUACIÓN / 2E / 2DO PARCIAL
   const isFinalExplicit =
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*do|2|ii|final)\b/.test(norm) ||
-    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam)\b/.test(norm) ||
-    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|ii)\b)/.test(norm) ||
-    (isShortText && /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(norm));
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|2\s*p|2|ii|final)\b/.test(norm) ||
+    /\b(?:final|examen final|evaluacion final|ex final|eval final|final exam|second exam|segundo parcial|2\s*do\s+parcial|evaluacion\s*2\s*p|examen\s*2\s*p|eval\s*2\s*p)\b/.test(norm) ||
+    /(?:\b(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|2\s*p|ii)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:segunda|segundo|2\s*da|2\s*nda|2\s*do|2\s*a|2\s*p|ii)\b)/.test(norm) ||
+    /\b(?:2\s*e|e\s*2|2\s*p|p\s*2|2\s*do\s*p|2\s*da\s*p|2\s*nda\s*p|parcial\s*2|parcial\s*ii|evaluacion\s*2|evaluacion\s*ii|eval\s*2|eval\s*ii|examen\s*2|examen\s*ii)\b/.test(norm);
 
   if (isFinalExplicit) {
     return { category: "EXAMEN", subcategory: "Final", detected: true };
   }
 
-  // C) PARCIAL / 1RA EVALUACIÓN / 1E / 1ER PARCIAL
+  // C) PARCIAL / 1RA EVALUACIÓN / 1E / 1ER PARCIAL / 1P
   const isParcialExplicit =
-    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*er|1\s*ro|1|i|parcial)\b/.test(norm) ||
-    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|midterm|first exam|primer examen|1\s*er\s+examen)\b/.test(norm) ||
-    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
-    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|i)\b)/.test(norm) ||
-    (isShortText && /\b(?:1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i|evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i)\b/.test(norm));
+    /\b(?:evaluacion|eval|examen|parcial)\s*[:\.\-]?\s*(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|1\s*p|1|i|parcial)\b/.test(norm) ||
+    /\b(?:parcial|primer parcial|1\s*er\s+parcial|1\s*ro\s+parcial|midterm|first exam|primer examen|1\s*er\s+examen|evaluacion\s*1\s*p|examen\s*1\s*p|eval\s*1\s*p)\b/.test(norm) ||
+    /(?:\b(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|1\s*p|i)\s*(?:evaluacion|eval|examen|parcial)\b)/.test(norm) ||
+    /(?:\b(?:evaluacion|eval|examen|parcial)\s*(?:de\s+|del\s+)?(?:primera|primer|primero|1\s*ra|1\s*era|1\s*er|1\s*ro|1\s*a|1\s*p|i)\b)/.test(norm) ||
+    /\b(?:1\s*e|e\s*1|1\s*p|p\s*1|1\s*er\s*p|1\s*ra\s*p|parcial\s*1|parcial\s*i|evaluacion\s*1|evaluacion\s*i|eval\s*1|eval\s*i|examen\s*1|examen\s*i)\b/.test(norm);
 
   if (isParcialExplicit) {
     return { category: "EXAMEN", subcategory: "Parcial", detected: true };
@@ -494,6 +494,16 @@ export function detectSubject(
   }
 
   const norm = normalizeString(combinedText);
+  const normNumerals = norm
+    .replace(/\bviii\b/g, "8")
+    .replace(/\bvii\b/g, "7")
+    .replace(/\bvi\b/g, "6")
+    .replace(/\biv\b/g, "4")
+    .replace(/\bv\b/g, "5")
+    .replace(/\biii\b/g, "3")
+    .replace(/\bii\b/g, "2")
+    .replace(/\bi\b/g, "1");
+
   // Reemplazar confusiones de OCR frecuentes en códigos (ej: CCPG1O43 -> CCPG1043, MATG1OO1 -> MATG1001)
   const upperRaw = combinedText.toUpperCase()
     .replace(/\b([A-Z]{3,4})\s*([0-9OIl]{3,5})\b/g, (_match, p1, p2) => {
@@ -501,8 +511,7 @@ export function detectSubject(
       return `${p1}${fixedNums}`;
     });
 
-  // 1. Búsqueda por CÓDIGO OFICIAL ESPOL (ej: CCPG1043, MATG1001, FISG1002, FIEC04341)
-  // Compara tanto la versión unida (CCPG1043) como con espacio/guión (CCPG 1043 / CCPG-1043)
+  // 1. Búsqueda por CÓDIGO OFICIAL ESPOL (ej: CCPG1043, MATG1001, FISG1002, EYAG1044, FIEC04341)
   for (const sub of subjects) {
     if (!sub.code) continue;
     const cleanCode = sub.code.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -518,7 +527,7 @@ export function detectSubject(
         };
       }
 
-      // Búsqueda del código separado (ej. CCPG 1043)
+      // Búsqueda del código separado (ej. CCPG 1043 / EYAG 1044)
       const letters = cleanCode.replace(/[0-9]/g, "");
       const digits = cleanCode.replace(/[^0-9]/g, "");
       if (letters && digits) {
@@ -540,10 +549,22 @@ export function detectSubject(
 
   for (const sub of sortedSubjects) {
     const subNorm = normalizeString(sub.name);
+    const subNormNumerals = subNorm
+      .replace(/\bviii\b/g, "8")
+      .replace(/\bvii\b/g, "7")
+      .replace(/\bvi\b/g, "6")
+      .replace(/\biv\b/g, "4")
+      .replace(/\bv\b/g, "5")
+      .replace(/\biii\b/g, "3")
+      .replace(/\bii\b/g, "2")
+      .replace(/\bi\b/g, "1");
+
     if (subNorm.length < 4) continue;
 
     const nameRegex = new RegExp(`\\b${subNorm}\\b`, "i");
-    if (nameRegex.test(norm)) {
+    const nameRegexNumerals = new RegExp(`\\b${subNormNumerals}\\b`, "i");
+
+    if (nameRegex.test(norm) || nameRegexNumerals.test(normNumerals)) {
       return {
         subjectId: sub.id,
         subjectName: sub.name,
@@ -555,6 +576,8 @@ export function detectSubject(
 
   // 3. Coincidencias frecuentes con abreviaturas o nombres alternativos populares de la ESPOL
   const commonAliases: Record<string, string[]> = {
+    "sistemas digitales i": ["sistemas digitales 1", "sistemas digitales i", "digitales 1", "digitales i", "sis digitales 1", "sis digitales i", "sistemas digitales"],
+    "sistemas digitales ii": ["sistemas digitales 2", "sistemas digitales ii", "digitales 2", "digitales ii", "sis digitales 2", "sis digitales ii"],
     "fisica 1": ["fisica i", "fisica mecanica", "fisica para ingenieria 1", "fisica 1", "mecanica newtoniana"],
     "fisica 2": ["fisica ii", "fisica electromagnetismo", "fisica 2", "electromagnetismo", "electricidad y magnetismo"],
     "fisica 3": ["fisica iii", "fisica moderna", "fisica 3", "ondas y optica"],
@@ -570,7 +593,6 @@ export function detectSubject(
     "redes": ["redes de comunicacion", "redes de computadoras", "redes"],
     "sistemas operativos": ["sistemas operativos", "so", "sist operativos"],
     "bases de datos": ["sistemas de bases de datos", "base de datos", "bases de datos", "bd"],
-    "sistemas digitales": ["sistemas digitales", "sistemas digitales 1", "sistemas digitales i", "sistemas digitales 2", "sistemas digitales ii", "digitales 1", "digitales i", "sis digitales", "digitales"],
     "circuitos electricos": ["circuitos electricos", "circuitos 1", "circuitos i", "analisis de circuitos"],
     "electronica": ["electronica 1", "electronica i", "electronica basica", "dispositivos electronicos"],
     "quimica general": ["quimica general", "quimica 1", "quimica basica"],
@@ -578,10 +600,25 @@ export function detectSubject(
 
   for (const [aliasKey, aliasList] of Object.entries(commonAliases)) {
     for (const alias of aliasList) {
-      if (norm.includes(alias)) {
+      if (norm.includes(alias) || normNumerals.includes(alias)) {
         const found = sortedSubjects.find((s) => {
           const sNorm = normalizeString(s.name);
-          return sNorm.includes(aliasKey) || aliasList.some((a) => sNorm.includes(a));
+          const sNormNum = sNorm
+            .replace(/\bviii\b/g, "8")
+            .replace(/\bvii\b/g, "7")
+            .replace(/\bvi\b/g, "6")
+            .replace(/\biv\b/g, "4")
+            .replace(/\bv\b/g, "5")
+            .replace(/\biii\b/g, "3")
+            .replace(/\bii\b/g, "2")
+            .replace(/\bi\b/g, "1");
+          return (
+            sNorm === aliasKey ||
+            sNormNum === aliasKey ||
+            sNorm.includes(aliasKey) ||
+            sNormNum.includes(aliasKey) ||
+            aliasList.some((a) => sNorm === a || sNormNum === a)
+          );
         });
         if (found) {
           return {
