@@ -1,10 +1,13 @@
 import crypto from "crypto";
+import { computeSemanticContentHash } from "./content-hash";
 
 export interface DriveItem {
   id: string;
   name: string;
   mimeType: string;
   fileSize?: number;
+  folderPath?: string;
+  isFolder?: boolean;
 }
 
 /**
@@ -50,14 +53,167 @@ export function getGoogleDrivePreviewUrl(fileId: string): string {
 }
 
 export function getGoogleDriveDownloadUrl(fileId: string): string {
-  return `https://drive.google.com/uc?export=download&id=${fileId}`;
+  return `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`;
 }
 
-import { computeSemanticContentHash } from "./content-hash";
+/**
+ * Obtiene metadatos de un archivo en Google Drive usando la API oficial v3 si está disponible
+ */
+export async function getDriveFileMetadata(fileId: string): Promise<{
+  id: string;
+  name?: string;
+  mimeType?: string;
+  fileSize?: number;
+} | null> {
+  const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const apiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,mimeType,size&key=${apiKey}`;
+    const res = await fetch(apiUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol-Academic",
+      },
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        id: data.id,
+        name: data.name,
+        mimeType: data.mimeType,
+        fileSize: data.size ? parseInt(data.size, 10) : undefined,
+      };
+    }
+  } catch (err) {
+    console.warn(`Error getting Drive file metadata for ${fileId}:`, err);
+  }
+  return null;
+}
+
+/**
+ * Verifica si un buffer binario corresponde a una página HTML de advertencia o error
+ */
+function isHtmlBuffer(buffer: Buffer): boolean {
+  if (!buffer || buffer.length === 0) return false;
+  const sample = buffer.subarray(0, 300).toString("utf8").trim().toLowerCase();
+  return (
+    sample.startsWith("<!doctype html") ||
+    sample.startsWith("<html") ||
+    sample.includes("<title>google drive") ||
+    sample.includes("virus scan warning")
+  );
+}
+
+/**
+ * Descarga el contenido binario de un archivo público de Google Drive como Buffer
+ * Soporta descarga directa mediante API v3 oficial y fallback con manejo de advertencias de virus.
+ */
+export async function downloadDriveFileBuffer(fileId: string): Promise<Buffer | null> {
+  const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
+
+  // 1. Método preferido y 100% fiable: API oficial v3 de Google Drive
+  if (apiKey) {
+    try {
+      const apiUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media&key=${apiKey}`;
+      const res = await fetch(apiUrl, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol-Academic",
+        },
+      });
+
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        if (!isHtmlBuffer(buffer)) {
+          return buffer;
+        }
+      }
+    } catch (e) {
+      console.warn(`[Drive v3 API Download Error] fileId ${fileId}:`, e);
+    }
+  }
+
+  // 2. Fallbacks de descarga pública directa
+  const downloadUrls = [
+    `https://drive.usercontent.google.com/download?id=${fileId}&export=download&confirm=t`,
+    `https://drive.google.com/uc?export=download&id=${fileId}&confirm=t`,
+    `https://docs.google.com/uc?export=download&id=${fileId}&confirm=t`,
+    `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
+    `https://drive.google.com/uc?export=download&id=${fileId}`,
+  ];
+
+  for (const url of downloadUrls) {
+    try {
+      const res = await fetch(url, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        redirect: "follow",
+      });
+
+      if (res.ok) {
+        const contentType = res.headers.get("content-type") || "";
+        const arrayBuf = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+
+        // Si no es HTML, hemos descargado el archivo binario exitosamente
+        if (!contentType.includes("text/html") && !isHtmlBuffer(buffer)) {
+          return buffer;
+        }
+
+        // Si es una página HTML de advertencia de virus de Google Drive, intentar extraer el token confirm y cookies
+        if (contentType.includes("text/html") || isHtmlBuffer(buffer)) {
+          const html = buffer.toString("utf8");
+
+          // Extraer enlace de confirmación o action del formulario
+          const confirmMatch =
+            html.match(/href="(\/uc\?export=download[^"]+confirm=[^"]+)"/i) ||
+            html.match(/action="([^"]+)"[^>]*id="download-form"/i) ||
+            html.match(/confirm=([0-9a-zA-Z_-]+)/i);
+
+          const cookiesHeader = res.headers.get("set-cookie") || "";
+
+          if (confirmMatch) {
+            let confirmUrl = "";
+            if (confirmMatch[1].startsWith("http")) {
+              confirmUrl = confirmMatch[1];
+            } else if (confirmMatch[1].startsWith("/")) {
+              confirmUrl = `https://drive.google.com${confirmMatch[1]}`;
+            } else {
+              confirmUrl = `https://drive.google.com/uc?export=download&id=${fileId}&confirm=${confirmMatch[1]}`;
+            }
+
+            const confirmRes = await fetch(confirmUrl, {
+              headers: {
+                "User-Agent":
+                  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                ...(cookiesHeader ? { Cookie: cookiesHeader } : {}),
+              },
+              redirect: "follow",
+            });
+
+            if (confirmRes.ok) {
+              const confirmBuf = Buffer.from(await confirmRes.arrayBuffer());
+              if (!isHtmlBuffer(confirmBuf)) {
+                return confirmBuf;
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn(`Error downloading drive file ${fileId} from ${url}:`, e);
+    }
+  }
+
+  return null;
+}
 
 /**
  * Descarga el flujo de bytes del archivo público de Google Drive para calcular su firma SHA-256
- * y huella de contenido semántico (para cotejar DOCX con PDF con exactitud)
+ * y huella de contenido semántico
  */
 export async function computeDriveFileHash(
   fileId: string,
@@ -70,63 +226,64 @@ export async function computeDriveFileHash(
   rawText?: string;
   extractedFilename?: string;
 }> {
-  const downloadUrl = `https://drive.google.com/uc?export=download&id=${fileId}`;
-
   try {
-    const res = await fetch(downloadUrl, {
-      method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol-Academic-Agent",
-      },
-    });
+    const meta = await getDriveFileMetadata(fileId);
+    const effectiveFilename = meta?.name || filename;
+    let mimeType = meta?.mimeType || "application/pdf";
 
-    if (!res.ok) {
+    const buffer = await downloadDriveFileBuffer(fileId);
+
+    if (!buffer) {
       const fallbackHash = crypto.createHash("sha256").update(`gdrive:${fileId}`).digest("hex");
       return {
         fileHash: fallbackHash,
-        fileSize: 1024 * 1024,
-        mimeType: "application/pdf",
+        fileSize: meta?.fileSize || 1024 * 1024,
+        mimeType,
         rawText: "",
-        extractedFilename: filename,
+        extractedFilename: effectiveFilename,
       };
     }
 
-    const disposition = res.headers.get("content-disposition") || "";
-    let extractedFilename = filename;
-    const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
-    if (match && match[1]) {
-      extractedFilename = decodeURIComponent(match[1]).trim();
-    }
-
-    const arrayBuffer = await res.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
     const rawSha256 = crypto.createHash("sha256").update(buffer).digest("hex");
     const fileSize = buffer.length;
-    const contentType = res.headers.get("content-type") || "application/pdf";
+
+    // Si el tipo devuelto por metadatos es octet-stream o no está claro, inferir
+    if (mimeType === "application/octet-stream" || !mimeType) {
+      if (effectiveFilename.toLowerCase().endsWith(".docx")) {
+        mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      } else if (effectiveFilename.toLowerCase().endsWith(".pdf")) {
+        mimeType = "application/pdf";
+      } else if (effectiveFilename.toLowerCase().endsWith(".sql")) {
+        mimeType = "text/x-sql";
+      } else if (effectiveFilename.toLowerCase().endsWith(".png")) {
+        mimeType = "image/png";
+      } else if (effectiveFilename.toLowerCase().endsWith(".jpg") || effectiveFilename.toLowerCase().endsWith(".jpeg")) {
+        mimeType = "image/jpeg";
+      }
+    }
 
     // Intentar calcular huella semántica si es docx o pdf
     try {
-      const semResult = await computeSemanticContentHash(buffer, extractedFilename || filename, contentType);
+      const semResult = await computeSemanticContentHash(buffer, effectiveFilename, mimeType);
       return {
         fileHash: semResult.contentHash || rawSha256,
         semanticHash: semResult.contentHash,
         fileSize,
-        mimeType: contentType,
+        mimeType,
         rawText: semResult.rawText || "",
-        extractedFilename,
+        extractedFilename: effectiveFilename,
       };
     } catch {
       return {
         fileHash: rawSha256,
         fileSize,
-        mimeType: contentType,
+        mimeType,
         rawText: "",
-        extractedFilename,
+        extractedFilename: effectiveFilename,
       };
     }
   } catch (error) {
-    console.warn("Could not stream Google Drive file directly, falling back to ID-based hash:", error);
+    console.warn("Could not compute Google Drive file hash:", error);
     const fallbackHash = crypto.createHash("sha256").update(`gdrive:${fileId}`).digest("hex");
     return {
       fileHash: fallbackHash,
@@ -136,15 +293,6 @@ export async function computeDriveFileHash(
       extractedFilename: filename,
     };
   }
-}
-
-export interface DriveItem {
-  id: string;
-  name: string;
-  mimeType: string;
-  fileSize?: number;
-  folderPath?: string;
-  isFolder?: boolean;
 }
 
 function isDriveFolder(entryName: string, entryContent: string, entryId = ""): boolean {
@@ -230,7 +378,7 @@ export async function fetchGoogleDriveFolderFiles(
   const apiKey = process.env.GOOGLE_DRIVE_API_KEY;
   const allItems: DriveItem[] = [];
 
-  // 1. Si existe API Key de Google Drive, usar API oficial v3 de Google (método idéntico a google-api-python-client)
+  // 1. Si existe API Key de Google Drive, usar API oficial v3 de Google
   if (apiKey) {
     try {
       let pageToken: string | undefined = undefined;
@@ -315,7 +463,6 @@ export async function fetchGoogleDriveFolderFiles(
     const seenIds = new Set<string>();
     const subFoldersToCrawl: Array<{ id: string; name: string }> = [];
 
-    // Parsear cada entrada de tabla o contenedor de la vista
     const trRegex = /<tr[^>]*id="entry-([a-zA-Z0-9_-]+)"([\s\S]*?)<\/tr>/gi;
     let trMatch: RegExpExecArray | null;
 
@@ -328,13 +475,11 @@ export async function fetchGoogleDriveFolderFiles(
       }
       seenIds.add(entryId);
 
-      // Extraer título / nombre del elemento
       const titleMatch =
         entryContent.match(/<div[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/div>/i) ||
         entryContent.match(/<a[^>]*>([^<]+)<\/a>/i);
       const entryName = titleMatch ? titleMatch[1].trim() : `Elemento ${entryId}`;
 
-      // Determinar si es una CARPETA o un ARCHIVO con precisión
       const isFolder = isDriveFolder(entryName, entryContent, entryId);
 
       if (isFolder) {
@@ -355,7 +500,6 @@ export async function fetchGoogleDriveFolderFiles(
       }
     }
 
-    // Fallback genérico por id="entry-XXXX" si trRegex no coincidió
     if (subFoldersToCrawl.length === 0 && allItems.length === 0) {
       const entryRegex = /id="entry-([a-zA-Z0-9_-]+)"[\s\S]*?<div[^>]*class="[^"]*entry-title[^"]*"[^>]*>([^<]+)<\/div>/gi;
       let match: RegExpExecArray | null;
@@ -378,7 +522,6 @@ export async function fetchGoogleDriveFolderFiles(
       }
     }
 
-    // Rastrear recursivamente todas las subcarpetas encontradas
     for (const subF of subFoldersToCrawl) {
       const subPath = currentPath ? `${currentPath} / ${subF.name}` : subF.name;
       const subFiles = await fetchGoogleDriveFolderFiles(
@@ -402,31 +545,4 @@ export async function fetchGoogleDriveFolderFiles(
     }
     return allItems;
   }
-}
-
-/**
- * Descarga el contenido binario de un archivo público de Google Drive como Buffer
- */
-export async function downloadDriveFileBuffer(fileId: string): Promise<Buffer | null> {
-  const downloadUrls = [
-    `https://drive.usercontent.google.com/download?id=${fileId}&export=download`,
-    `https://drive.google.com/uc?export=download&id=${fileId}`,
-  ];
-
-  for (const url of downloadUrls) {
-    try {
-      const res = await fetch(url, {
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol/1.0",
-        },
-      });
-      if (res.ok) {
-        const arrayBuf = await res.arrayBuffer();
-        return Buffer.from(arrayBuf);
-      }
-    } catch (e) {
-      console.warn(`Error downloading drive file ${fileId} from ${url}:`, e);
-    }
-  }
-  return null;
 }

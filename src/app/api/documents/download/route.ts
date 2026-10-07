@@ -3,7 +3,15 @@ import { s3Client } from "@/lib/s3-r2";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { getPresignedDownloadUrl } from "@/lib/s3-r2";
 import { prisma } from "@/lib/prisma";
-import { extractGoogleDriveFileId } from "@/lib/drive-utils";
+import { 
+  extractGoogleDriveFileId, 
+  downloadDriveFileBuffer, 
+  getDriveFileMetadata 
+} from "@/lib/drive-utils";
+import { 
+  sanitizeFileNameWithExtension, 
+  getMimeTypeFromFilenameOrBuffer 
+} from "@/lib/mime-utils";
 import { Readable } from "stream";
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "repol-academic";
@@ -13,15 +21,17 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const key = searchParams.get("key");
     const documentId = searchParams.get("id");
+    const customUrl = searchParams.get("url");
+    const customName = searchParams.get("name");
     const mode = searchParams.get("mode"); // 'stream', 'redirect', 'download', 'inline'
     const isDownload = searchParams.get("download") === "true" || mode === "download";
 
     let targetKey = key;
-    let docTitle = "";
-    let docFileUrl = "";
-    let docMimeType = "application/pdf";
+    let docTitle = customName || "";
+    let docFileUrl = customUrl || "";
+    let docMimeType = "";
 
-    // Si pasaron documentId o key, buscar en la BD
+    // Si pasaron documentId o key, buscar en la base de datos
     if (documentId) {
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
@@ -32,7 +42,7 @@ export async function GET(req: Request) {
         targetKey = doc.storageKey;
         docTitle = doc.title;
         docFileUrl = doc.fileUrl;
-        docMimeType = doc.mimeType || "application/pdf";
+        docMimeType = doc.mimeType || "";
 
         if (isDownload) {
           prisma.document
@@ -52,7 +62,7 @@ export async function GET(req: Request) {
       if (doc) {
         docTitle = doc.title;
         docFileUrl = doc.fileUrl;
-        docMimeType = doc.mimeType || "application/pdf";
+        docMimeType = doc.mimeType || "";
 
         if (isDownload) {
           prisma.document
@@ -66,15 +76,9 @@ export async function GET(req: Request) {
     }
 
     if (!targetKey && !docFileUrl) {
-      return NextResponse.json({ error: "Falta el parámetro 'key' o 'id' del documento" }, { status: 400 });
+      return NextResponse.json({ error: "Falta el parámetro 'key', 'id' o 'url' del documento" }, { status: 400 });
     }
 
-    // Preparar el nombre del archivo para la cabecera Content-Disposition
-    const safeTitle = (docTitle || targetKey || "documento")
-      .replace(/[^a-zA-Z0-9\s._-]/g, "_")
-      .replace(/\s+/g, "_")
-      .trim();
-    const finalFilename = safeTitle.toLowerCase().endsWith(".pdf") ? safeTitle : `${safeTitle}.pdf`;
     const dispositionType = isDownload ? "attachment" : "inline";
 
     // =========================================================================
@@ -93,31 +97,29 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "ID de archivo de Google Drive no válido" }, { status: 400 });
       }
 
-      const driveDownloadUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}`;
-      const driveRes = await fetch(driveDownloadUrl, {
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) RePol-Academic-Agent",
-        },
-      });
+      // Obtener metadatos y buffer binario desde Google Drive
+      const [driveMeta, fileBuffer] = await Promise.all([
+        getDriveFileMetadata(driveFileId),
+        downloadDriveFileBuffer(driveFileId),
+      ]);
 
-      if (!driveRes.ok) {
-        console.error("Error al descargar desde Google Drive, status:", driveRes.status);
+      if (!fileBuffer) {
+        console.error("Error al descargar buffer binario desde Google Drive para ID:", driveFileId);
         return NextResponse.json(
-          { error: "No se pudo recuperar el archivo desde Google Drive. Verifica que el enlace sea público." },
+          { error: "No se pudo recuperar el archivo desde Google Drive. Asegúrate de que el archivo esté compartido públicamente." },
           { status: 502 }
         );
       }
 
-      // Si Google Drive responde con confirmación o streaming directo:
-      const arrayBuffer = await driveRes.arrayBuffer();
-      const contentType = driveRes.headers.get("content-type") || docMimeType;
+      const effectiveTitle = docTitle || driveMeta?.name || "Documento";
+      const effectiveMime = driveMeta?.mimeType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle, fileBuffer);
+      const finalFilename = sanitizeFileNameWithExtension(effectiveTitle, effectiveMime, fileBuffer);
 
-      return new Response(arrayBuffer, {
+      return new Response(new Uint8Array(fileBuffer), {
         headers: {
-          "Content-Type": contentType,
+          "Content-Type": effectiveMime,
           "Content-Disposition": `${dispositionType}; filename="${encodeURIComponent(finalFilename)}"`,
-          "Content-Length": arrayBuffer.byteLength.toString(),
+          "Content-Length": fileBuffer.length.toString(),
           "Cache-Control": "public, max-age=86400, stale-while-revalidate=43200",
         },
       });
@@ -146,6 +148,10 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "El archivo no existe en el almacenamiento" }, { status: 404 });
     }
 
+    const effectiveTitle = docTitle || targetKey || "documento";
+    const contentType = s3Response.ContentType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+    const finalFilename = sanitizeFileNameWithExtension(effectiveTitle, contentType);
+
     const nodeStream = s3Response.Body as Readable;
     const webStream = new ReadableStream({
       start(controller) {
@@ -154,8 +160,6 @@ export async function GET(req: Request) {
         nodeStream.on("error", (err: Error) => controller.error(err));
       },
     });
-
-    const contentType = s3Response.ContentType || docMimeType || "application/pdf";
 
     return new Response(webStream, {
       headers: {

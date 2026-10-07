@@ -1,15 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import JSZip from "jszip";
-import { downloadDriveFileBuffer } from "@/lib/drive-utils";
+import { 
+  downloadDriveFileBuffer, 
+  extractGoogleDriveFileId, 
+  getDriveFileMetadata 
+} from "@/lib/drive-utils";
 import { downloadR2Buffer } from "@/lib/s3-r2";
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").trim();
-}
+import { sanitizeFileNameWithExtension } from "@/lib/mime-utils";
 
 function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").trim();
+}
+
+function sanitizeBaseName(name: string): string {
+  return name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").trim();
 }
 
 export const dynamic = "force-dynamic";
@@ -107,15 +112,22 @@ export async function GET(req: Request) {
         let fileBuffer: Buffer | null = null;
 
         // 1. Obtener buffer del archivo principal (Google Drive o Cloudflare R2)
-        if (doc.storageKey.startsWith("gdrive:")) {
-          const driveId = doc.storageKey.replace("gdrive:", "");
-          fileBuffer = await downloadDriveFileBuffer(driveId);
+        const driveIdFromStorage = doc.storageKey.startsWith("gdrive:") 
+          ? doc.storageKey.replace("gdrive:", "") 
+          : null;
+        const driveIdFromUrl = !driveIdFromStorage && doc.fileUrl.includes("drive.google.com") 
+          ? extractGoogleDriveFileId(doc.fileUrl) 
+          : null;
+        const effectiveDriveId = driveIdFromStorage || driveIdFromUrl;
+
+        if (effectiveDriveId) {
+          fileBuffer = await downloadDriveFileBuffer(effectiveDriveId);
         } else {
           fileBuffer = await downloadR2Buffer(doc.storageKey);
         }
 
         // Si falló la descarga directa por storageKey, intentar por URL
-        if (!fileBuffer && doc.fileUrl.startsWith("http")) {
+        if (!fileBuffer && doc.fileUrl.startsWith("http") && !effectiveDriveId) {
           try {
             const res = await fetch(doc.fileUrl);
             if (res.ok) {
@@ -128,35 +140,49 @@ export async function GET(req: Request) {
         }
 
         if (fileBuffer) {
-          const cleanTitle = sanitizeFilename(doc.title);
-          const ext = doc.mimeType.includes("pdf") ? ".pdf" : "";
+          const cleanTitle = sanitizeBaseName(doc.title);
           const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
-          const fileName = `${yearLabel}_${doc.periodTerm}_${cleanTitle}${ext.length > 0 ? ext : ""}`;
+          const basePrefix = `${yearLabel}_${doc.periodTerm}_${cleanTitle}`;
+          const finalFileName = sanitizeFileNameWithExtension(basePrefix, doc.mimeType, fileBuffer);
 
-          targetFolder.file(fileName.endsWith(".pdf") ? fileName : `${fileName}.pdf`, fileBuffer);
+          targetFolder.file(finalFileName, fileBuffer);
           filesAddedCount++;
         }
 
         // 2. Procesar anexos complementarios dentro de su subcarpeta correspondiente
         if (doc.attachments && Array.isArray(doc.attachments) && doc.attachments.length > 0) {
-          const attachmentsList = doc.attachments as Array<{ name: string; fileUrl: string; storageKey?: string }>;
-          const cleanDocTitle = sanitizeFilename(doc.title).substring(0, 30);
+          const attachmentsList = doc.attachments as Array<{
+            name: string;
+            fileUrl: string;
+            storageKey?: string;
+            mimeType?: string;
+            fileSize?: number;
+          }>;
+          const cleanDocTitle = sanitizeBaseName(doc.title).substring(0, 30);
           const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
           const attFolder = targetFolder.folder(`Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
 
           if (attFolder) {
             for (const att of attachmentsList) {
               let attBuffer: Buffer | null = null;
+              let attDriveMeta: { id: string; name?: string; mimeType?: string } | null = null;
 
-              if (att.storageKey) {
-                if (att.storageKey.startsWith("gdrive:")) {
-                  attBuffer = await downloadDriveFileBuffer(att.storageKey.replace("gdrive:", ""));
-                } else {
-                  attBuffer = await downloadR2Buffer(att.storageKey);
-                }
+              // Identificar si el anexo proviene de Google Drive
+              const attDriveId = att.storageKey?.startsWith("gdrive:")
+                ? att.storageKey.replace("gdrive:", "")
+                : att.fileUrl && att.fileUrl.includes("drive.google.com")
+                ? extractGoogleDriveFileId(att.fileUrl)
+                : null;
+
+              if (attDriveId) {
+                attDriveMeta = await getDriveFileMetadata(attDriveId);
+                attBuffer = await downloadDriveFileBuffer(attDriveId);
+              } else if (att.storageKey) {
+                attBuffer = await downloadR2Buffer(att.storageKey);
               }
 
-              if (!attBuffer && att.fileUrl && att.fileUrl.startsWith("http")) {
+              // Fallback por URL HTTP si no se obtuvo buffer
+              if (!attBuffer && att.fileUrl && att.fileUrl.startsWith("http") && !attDriveId) {
                 try {
                   const res = await fetch(att.fileUrl);
                   if (res.ok) {
@@ -169,7 +195,24 @@ export async function GET(req: Request) {
               }
 
               if (attBuffer) {
-                attFolder.file(sanitizeFilename(att.name), attBuffer);
+                // Determinar el nombre con extensión apropiada
+                let baseAttName = att.name || attDriveMeta?.name || "Anexo";
+                
+                // Si el nombre no tiene extensión pero tenemos el nombre original de Drive, usar la extensión de Drive
+                if (!baseAttName.includes(".") && attDriveMeta?.name?.includes(".")) {
+                  const origExtMatch = attDriveMeta.name.match(/\.([a-zA-Z0-9]{2,5})$/);
+                  if (origExtMatch) {
+                    baseAttName = `${baseAttName}.${origExtMatch[1]}`;
+                  }
+                }
+
+                const finalAttName = sanitizeFileNameWithExtension(
+                  baseAttName,
+                  attDriveMeta?.mimeType || att.mimeType,
+                  attBuffer
+                );
+
+                attFolder.file(finalAttName, attBuffer);
               }
             }
           }
@@ -201,7 +244,7 @@ export async function GET(req: Request) {
       },
     });
 
-    const zipFilename = `${sanitizeFilename(subject.code)}_${sanitizeFilename(subject.name)}_RePol.zip`;
+    const zipFilename = `${sanitizeBaseName(subject.code)}_${sanitizeBaseName(subject.name)}_RePol.zip`;
 
     return new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,

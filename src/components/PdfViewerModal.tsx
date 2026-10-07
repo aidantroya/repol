@@ -11,6 +11,7 @@ export interface AttachmentItem {
   fileUrl: string;
   fileSize: number;
   mimeType: string;
+  storageKey?: string;
 }
 
 interface PdfViewerModalProps {
@@ -134,20 +135,20 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
             </button>
           )}
 
-          {/* Botón de Descarga directa del PDF principal */}
+          {/* Botón de Descarga directa del documento principal */}
           <button
             onClick={() => {
               if (onDownload) onDownload();
               const downloadUrl = `/api/documents/download?id=${doc.id}&download=true`;
               const link = document.createElement("a");
               link.href = downloadUrl;
-              link.setAttribute("download", `${doc.title.replace(/[^a-zA-Z0-9\s._-]/g, "_")}.pdf`);
+              link.setAttribute("download", "");
               document.body.appendChild(link);
               link.click();
               document.body.removeChild(link);
             }}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition"
-            title="Descargar PDF principal a tu dispositivo"
+            title="Descargar documento principal a tu dispositivo"
           >
             <Download className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Descargar</span>
@@ -160,7 +161,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
             target="_blank"
             rel="noreferrer"
             className="flex items-center justify-center rounded-xl border border-zinc-700 bg-zinc-800 hover:bg-zinc-700 p-2 text-zinc-300 hover:text-white transition"
-            title="Abrir PDF en pestaña nueva"
+            title="Abrir documento en pestaña nueva"
           >
             <ExternalLink className="h-4 w-4" />
           </a>
@@ -186,34 +187,43 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
             </span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-            {doc.attachments?.map((att, idx) => (
-              <div
-                key={idx}
-                className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-700 transition"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <FileCode className="h-4 w-4 text-amber-400 shrink-0" />
-                  <div className="truncate">
-                    <p className="text-xs font-medium text-zinc-200 truncate" title={att.name}>
-                      {att.name}
-                    </p>
-                    <p className="text-[10px] text-zinc-500">
-                      {formatBytes(att.fileSize || 0)}
-                    </p>
-                  </div>
-                </div>
+            {doc.attachments?.map((att, idx) => {
+              const attDownloadUrl = att.storageKey
+                ? `/api/documents/download?key=${encodeURIComponent(att.storageKey)}&name=${encodeURIComponent(att.name)}&download=true`
+                : att.fileUrl?.includes("drive.google.com")
+                ? `/api/documents/download?url=${encodeURIComponent(att.fileUrl)}&name=${encodeURIComponent(att.name)}&download=true`
+                : att.fileUrl;
 
-                <a
-                  href={att.fileUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-medium border border-zinc-700 shrink-0 transition"
+              return (
+                <div
+                  key={idx}
+                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-zinc-950 border border-zinc-800 hover:border-zinc-700 transition"
                 >
-                  <Download className="h-3 w-3 text-amber-400" />
-                  <span>Bajar</span>
-                </a>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2 truncate">
+                    <FileCode className="h-4 w-4 text-amber-400 shrink-0" />
+                    <div className="truncate">
+                      <p className="text-xs font-medium text-zinc-200 truncate" title={att.name}>
+                        {att.name}
+                      </p>
+                      <p className="text-[10px] text-zinc-500">
+                        {formatBytes(att.fileSize || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <a
+                    href={attDownloadUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    download
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 hover:text-white text-xs font-medium border border-zinc-700 shrink-0 transition"
+                  >
+                    <Download className="h-3 w-3 text-amber-400" />
+                    <span>Bajar</span>
+                  </a>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

@@ -24,6 +24,7 @@ export interface AttachmentItem {
   fileUrl: string;
   fileSize: number;
   mimeType: string;
+  storageKey?: string;
 }
 
 export interface DocumentItem {
