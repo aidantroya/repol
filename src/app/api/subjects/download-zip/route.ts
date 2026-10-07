@@ -7,7 +7,11 @@ import {
   getDriveFileMetadata 
 } from "@/lib/drive-utils";
 import { downloadR2Buffer } from "@/lib/s3-r2";
-import { sanitizeFileNameWithExtension } from "@/lib/mime-utils";
+import { 
+  sanitizeFileNameWithExtension, 
+  formatStandardDocumentFileName, 
+  cleanDocumentTitle 
+} from "@/lib/mime-utils";
 
 function sanitizeFolderName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").trim();
@@ -140,10 +144,14 @@ export async function GET(req: Request) {
         }
 
         if (fileBuffer) {
-          const cleanTitle = sanitizeBaseName(doc.title);
-          const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
-          const basePrefix = `${yearLabel}_${doc.periodTerm}_${cleanTitle}`;
-          const finalFileName = sanitizeFileNameWithExtension(basePrefix, doc.mimeType, fileBuffer);
+          const finalFileName = formatStandardDocumentFileName({
+            title: doc.title,
+            year: doc.periodYear,
+            term: doc.periodTerm,
+            subjectCode: subject.code,
+            mimeType: doc.mimeType,
+            buffer: fileBuffer,
+          });
 
           targetFolder.file(finalFileName, fileBuffer);
           filesAddedCount++;
@@ -158,9 +166,9 @@ export async function GET(req: Request) {
             mimeType?: string;
             fileSize?: number;
           }>;
-          const cleanDocTitle = sanitizeBaseName(doc.title).substring(0, 30);
+          const cleanDocTitle = cleanDocumentTitle(doc.title, doc.periodYear, doc.periodTerm).substring(0, 30);
           const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
-          const attFolder = targetFolder.folder(`Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${idx + 1}`);
+          const attFolder = targetFolder.folder(`Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${subject.code}_${idx + 1}`);
 
           if (attFolder) {
             for (const att of attachmentsList) {

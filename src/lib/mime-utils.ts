@@ -204,3 +204,62 @@ export function getMimeTypeFromFilenameOrBuffer(
 
   return fallbackMime;
 }
+
+/**
+ * Limpia el título del documento evitando la duplicación de año y término,
+ * y prepara un nombre legible.
+ */
+export function cleanDocumentTitle(
+  title: string,
+  year?: number | null,
+  term?: string | null
+): string {
+  let cleaned = title.replace(/\.[a-zA-Z0-9]{2,5}$/i, "");
+  cleaned = cleaned.replace(/^gdrive:[a-zA-Z0-9_-]+\s*/i, "");
+
+  if (year && year > 0) {
+    cleaned = cleaned.replace(new RegExp(`\\b${year}\\b`, "gi"), "");
+  }
+  if (term && term !== "General" && term !== "SF") {
+    cleaned = cleaned.replace(new RegExp(`\\b${term}\\b`, "gi"), "");
+  }
+  // Remover términos y años residuales si ya están en el prefijo
+  cleaned = cleaned.replace(/\b(1PAO|2PAO|3PAO|PAE|1T|2T|3T|1S|2S)\b/gi, "");
+  cleaned = cleaned.replace(/\b(19\d\d|20\d\d)\b/g, "");
+
+  // Limpiar caracteres inválidos
+  cleaned = cleaned
+    .replace(/[/\\?%*:|"<>]/g, " ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) {
+    cleaned = title.replace(/[/\\?%*:|"<>]/g, "-").trim();
+  }
+
+  return cleaned.replace(/\s+/g, "_");
+}
+
+/**
+ * Genera el nombre de archivo estandarizado con el formato:
+ * {AÑO}_{TERMINO}_{TITULO_LIMPIO}_{CODIGO_MATERIA}.{EXTENSION}
+ */
+export function formatStandardDocumentFileName(params: {
+  title: string;
+  year?: number | null;
+  term?: string | null;
+  subjectCode?: string | null;
+  mimeType?: string | null;
+  buffer?: Buffer | null;
+}): string {
+  const { title, year, term, subjectCode, mimeType, buffer } = params;
+  const yearLabel = year && year > 0 ? `${year}` : "SF";
+  const termLabel = term && term.trim() ? term.trim() : "General";
+  const cleanedTitle = cleanDocumentTitle(title, year, term);
+  const codeSuffix = subjectCode && subjectCode.trim() ? `_${subjectCode.trim().replace(/[/\\?%*:|"<>]/g, "_")}` : "";
+
+  const baseName = `${yearLabel}_${termLabel}_${cleanedTitle}${codeSuffix}`;
+  return sanitizeFileNameWithExtension(baseName, mimeType, buffer);
+}
+

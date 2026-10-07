@@ -9,7 +9,7 @@ import {
   getDriveFileMetadata 
 } from "@/lib/drive-utils";
 import { 
-  sanitizeFileNameWithExtension, 
+  formatStandardDocumentFileName,
   getMimeTypeFromFilenameOrBuffer 
 } from "@/lib/mime-utils";
 import { Readable } from "stream";
@@ -30,12 +30,24 @@ export async function GET(req: Request) {
     let docTitle = customName || "";
     let docFileUrl = customUrl || "";
     let docMimeType = "";
+    let docYear: number | null = null;
+    let docTerm: string | null = null;
+    let docSubjectCode: string | null = null;
 
     // Si pasaron documentId o key, buscar en la base de datos
     if (documentId) {
       const doc = await prisma.document.findUnique({
         where: { id: documentId },
-        select: { id: true, title: true, storageKey: true, fileUrl: true, mimeType: true },
+        select: { 
+          id: true, 
+          title: true, 
+          storageKey: true, 
+          fileUrl: true, 
+          mimeType: true,
+          periodYear: true,
+          periodTerm: true,
+          subject: { select: { code: true } }
+        },
       });
 
       if (doc) {
@@ -43,6 +55,9 @@ export async function GET(req: Request) {
         docTitle = doc.title;
         docFileUrl = doc.fileUrl;
         docMimeType = doc.mimeType || "";
+        docYear = doc.periodYear;
+        docTerm = doc.periodTerm;
+        docSubjectCode = doc.subject?.code || null;
 
         if (isDownload) {
           prisma.document
@@ -56,13 +71,25 @@ export async function GET(req: Request) {
     } else if (targetKey) {
       const doc = await prisma.document.findFirst({
         where: { storageKey: targetKey },
-        select: { id: true, title: true, storageKey: true, fileUrl: true, mimeType: true },
+        select: { 
+          id: true, 
+          title: true, 
+          storageKey: true, 
+          fileUrl: true, 
+          mimeType: true,
+          periodYear: true,
+          periodTerm: true,
+          subject: { select: { code: true } }
+        },
       });
 
       if (doc) {
         docTitle = doc.title;
         docFileUrl = doc.fileUrl;
         docMimeType = doc.mimeType || "";
+        docYear = doc.periodYear;
+        docTerm = doc.periodTerm;
+        docSubjectCode = doc.subject?.code || null;
 
         if (isDownload) {
           prisma.document
@@ -113,7 +140,14 @@ export async function GET(req: Request) {
 
       const effectiveTitle = docTitle || driveMeta?.name || "Documento";
       const effectiveMime = driveMeta?.mimeType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle, fileBuffer);
-      const finalFilename = sanitizeFileNameWithExtension(effectiveTitle, effectiveMime, fileBuffer);
+      const finalFilename = formatStandardDocumentFileName({
+        title: effectiveTitle,
+        year: docYear,
+        term: docTerm,
+        subjectCode: docSubjectCode,
+        mimeType: effectiveMime,
+        buffer: fileBuffer,
+      });
 
       return new Response(new Uint8Array(fileBuffer), {
         headers: {
@@ -150,7 +184,13 @@ export async function GET(req: Request) {
 
     const effectiveTitle = docTitle || targetKey || "documento";
     const contentType = s3Response.ContentType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
-    const finalFilename = sanitizeFileNameWithExtension(effectiveTitle, contentType);
+    const finalFilename = formatStandardDocumentFileName({
+      title: effectiveTitle,
+      year: docYear,
+      term: docTerm,
+      subjectCode: docSubjectCode,
+      mimeType: contentType,
+    });
 
     const nodeStream = s3Response.Body as Readable;
     const webStream = new ReadableStream({
