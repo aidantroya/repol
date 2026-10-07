@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { 
   extractGoogleDriveFileId, 
-  extractGoogleDriveFolderId,
+  extractGoogleDriveFolderId, 
   fetchGoogleDriveFolderFiles,
   computeDriveFileHash, 
   getGoogleDrivePreviewUrl, 
   getGoogleDriveDownloadUrl 
 } from "@/lib/drive-utils";
 import { prisma } from "@/lib/prisma";
-import { detectDocumentMetadata } from "@/lib/metadata-detector";
+import { detectDocumentMetadataHybrid } from "@/lib/metadata-detector";
 
 export async function POST(req: Request) {
   try {
@@ -79,7 +79,7 @@ export async function POST(req: Request) {
           const isDuplicate = Boolean(existingDoc || existingSub);
           const effectiveName = extractedFilename || file.name || "Documento Drive";
           const combinedDriveText = rawText || `${file.folderPath || ""} ${effectiveName}`;
-          const detectedMetadata = detectDocumentMetadata(effectiveName, combinedDriveText, allSubjects);
+          const detectedMetadata = await detectDocumentMetadataHybrid(effectiveName, combinedDriveText, allSubjects);
 
           return {
             fileId: file.id,
@@ -181,7 +181,7 @@ export async function POST(req: Request) {
     const previewUrl = getGoogleDrivePreviewUrl(fileId);
     const downloadUrl = getGoogleDriveDownloadUrl(fileId);
     const fileNameFallback = extractedFilename || "Documento Google Drive";
-    const detectedMetadata = detectDocumentMetadata(fileNameFallback, rawText || "", allSubjects);
+    const detectedMetadata = await detectDocumentMetadataHybrid(fileNameFallback, rawText || "", allSubjects);
 
     return NextResponse.json({
       isFolder: false,

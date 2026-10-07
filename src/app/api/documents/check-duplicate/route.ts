@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { computeSemanticContentHash } from "@/lib/content-hash";
-import { detectDocumentMetadata } from "@/lib/metadata-detector";
+import { detectDocumentMetadataHybrid } from "@/lib/metadata-detector";
 
 export async function POST(req: Request) {
   try {
@@ -60,9 +60,9 @@ export async function POST(req: Request) {
       checkTitleOnly = Boolean(body.checkTitleOnly);
     }
 
-    // Ejecutar detector inteligente de metadatos si hay archivo o texto
+    // Ejecutar detector híbrido (IA primaria con fallback a reglas)
     const detectedMetadata = filename
-      ? detectDocumentMetadata(filename, rawExtractedText, allSubjects)
+      ? await detectDocumentMetadataHybrid(filename, rawExtractedText, allSubjects)
       : null;
 
     const effectiveSubjectId = subjectId || detectedMetadata?.subjectId || "";

@@ -690,3 +690,90 @@ export function detectDocumentMetadata(
     },
   };
 }
+
+/**
+ * Detector híbrido que consulta primero a Google Gemini AI para máxima comprensión contextual.
+ * Si la IA no está disponible (timeout, cuota 429 agotada o error de red), se activa
+ * de forma inmediata y automática el detector por reglas locales sin interrumpir el flujo.
+ */
+export async function detectDocumentMetadataHybrid(
+  filename: string,
+  rawHeaderOrDocumentText: string = "",
+  subjects: SubjectOption[] = []
+): Promise<DetectedDocumentMetadata> {
+  const cleanFilename = filename.replace(/\.[^/.]+$/, "");
+
+  // 1. Intento primario con IA Ligera (Google Gemini)
+  try {
+    const { detectMetadataWithGemini } = await import("./gemini-detector");
+    const aiResult = await detectMetadataWithGemini(filename, rawHeaderOrDocumentText);
+
+    if (aiResult && aiResult.category) {
+      // Cruzar la materia detectada por la IA con el catálogo oficial de la ESPOL
+      let matchedSubject = subjects.find(
+        (s) =>
+          aiResult.subjectCode &&
+          s.code &&
+          s.code.toUpperCase().replace(/[^A-Z0-9]/g, "") === aiResult.subjectCode.toUpperCase().replace(/[^A-Z0-9]/g, "")
+      );
+
+      if (!matchedSubject && aiResult.subjectName) {
+        const normName = normalizeString(aiResult.subjectName);
+        matchedSubject = subjects.find((s) => {
+          const sNorm = normalizeString(s.name);
+          return sNorm.includes(normName) || normName.includes(sNorm);
+        });
+      }
+
+      // Si la IA no encontró materia, intentar con el detector de materias local
+      if (!matchedSubject) {
+        const localSub = detectSubject(rawHeaderOrDocumentText || cleanFilename, subjects);
+        if (localSub.detected) {
+          matchedSubject = subjects.find((s) => s.id === localSub.subjectId);
+        }
+      }
+
+      const finalCategory = aiResult.category;
+      const finalSubcategory = aiResult.subcategory || "Parcial";
+      const finalYear = aiResult.periodYear && aiResult.periodYear !== "S/F" ? aiResult.periodYear : "S/F";
+      const finalTerm = aiResult.periodTerm || "1PAO";
+      const isSol =
+        aiResult.isSolution ??
+        (detectIsSolution(cleanFilename) || (rawHeaderOrDocumentText ? detectIsSolution(rawHeaderOrDocumentText) : false));
+
+      const suggestedTitle = generateCleanDocumentTitle({
+        category: finalCategory,
+        subcategory: finalSubcategory,
+        periodYear: finalYear,
+        periodTerm: finalTerm,
+        isSolution: isSol,
+        originalFilename: filename,
+      });
+
+      return {
+        subjectId: matchedSubject?.id,
+        subjectName: matchedSubject?.name || aiResult.subjectName,
+        subjectCode: matchedSubject?.code || aiResult.subjectCode,
+        category: finalCategory,
+        subcategory: finalSubcategory,
+        periodYear: finalYear,
+        periodTerm: finalTerm,
+        isSolution: isSol,
+        suggestedTitle,
+        confidence: {
+          subject: Boolean(matchedSubject),
+          category: true,
+          periodYear: finalYear !== "S/F",
+          periodTerm: true,
+          isSolution: isSol,
+        },
+      };
+    }
+  } catch (error) {
+    console.warn("[Hybrid Detector] IA no disponible, ejecutando fallback local:", error);
+  }
+
+  // 2. Fallback automático e inmediato al detector por reglas locales
+  return detectDocumentMetadata(filename, rawHeaderOrDocumentText, subjects);
+}
+
