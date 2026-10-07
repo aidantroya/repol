@@ -22,7 +22,8 @@ import {
   FileCode,
   CheckSquare,
   Square,
-  Eye
+  Eye,
+  Check
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
@@ -760,9 +761,18 @@ export default function UploadPage() {
     }
   };
 
-  // Aplicar Materia, Categoría, Subcategoría, Año y Periodo global
-  const handleApplyGlobal = (applyToAll: boolean) => {
+  // Aplicar cambios globales o individuales a documentos seleccionados o a todo el lote
+  const handleApplyField = (
+    field: "all" | "subject" | "category" | "subcategory" | "year" | "term",
+    applyToAllExplicit?: boolean
+  ) => {
     if (queue.length === 0) return;
+
+    // Si applyToAllExplicit no está definido, aplica a seleccionados si hay alguno seleccionado, sino a todos
+    const applyToAll =
+      applyToAllExplicit !== undefined
+        ? applyToAllExplicit
+        : selectedItemIds.length === 0;
 
     const targetIds = applyToAll
       ? new Set(queue.map((item) => item.id))
@@ -770,13 +780,39 @@ export default function UploadPage() {
 
     if (targetIds.size === 0) return;
 
+    const selectedSubject = allSubjectOptions.find((s) => s.value === globalSubjectId);
+
     setQueue((prev) =>
       prev.map((item) => {
         if (!targetIds.has(item.id)) return item;
-        const updatedCat = globalCategory;
-        const updatedSub = globalSubcategory;
-        const updatedYear = globalYear || item.periodYear;
-        const updatedTerm = globalPeriodTerm;
+
+        let updatedCat = item.category;
+        let updatedSub = item.subcategory;
+        let updatedYear = item.periodYear;
+        let updatedTerm = item.periodTerm;
+        let updatedSubjectId = item.subjectId;
+
+        if (field === "all" || field === "subject") {
+          if (globalSubjectId) updatedSubjectId = globalSubjectId;
+        }
+
+        if (field === "all" || field === "category") {
+          updatedCat = globalCategory;
+          updatedSub = globalSubcategory;
+        }
+
+        if (field === "subcategory") {
+          updatedSub = globalSubcategory;
+        }
+
+        if (field === "all" || field === "year") {
+          updatedYear = globalYear || item.periodYear;
+        }
+
+        if (field === "all" || field === "term") {
+          updatedTerm = globalPeriodTerm;
+        }
+
         const newTitle =
           updatedCat === "EXAMEN" || updatedCat === "LECCION" || updatedCat === "TALLER"
             ? generateCleanDocumentTitle({
@@ -791,7 +827,7 @@ export default function UploadPage() {
 
         return {
           ...item,
-          ...(globalSubjectId ? { subjectId: globalSubjectId } : {}),
+          subjectId: updatedSubjectId,
           category: updatedCat,
           subcategory: updatedSub,
           periodYear: updatedYear,
@@ -802,12 +838,27 @@ export default function UploadPage() {
     );
 
     const count = targetIds.size;
-    setAppliedNotification(
-      `Se aplicaron los ajustes por defecto a ${count} ${count === 1 ? "documento" : "documentos"}.`
-    );
+    const targetLabel = count === 1 ? "1 documento" : `${count} documentos`;
+
+    let msg = `Se aplicaron los cambios a ${targetLabel}.`;
+    if (field === "subject") {
+      msg = `Se asignó la materia ${selectedSubject ? `"${selectedSubject.label}"` : ""} a ${targetLabel}.`;
+    } else if (field === "category") {
+      msg = `Se asignó la categoría "${globalCategory} - ${globalSubcategory}" a ${targetLabel}.`;
+    } else if (field === "subcategory") {
+      msg = `Se asignó la subcategoría "${globalSubcategory}" a ${targetLabel}.`;
+    } else if (field === "year") {
+      msg = `Se asignó el año "${globalYear}" a ${targetLabel}.`;
+    } else if (field === "term") {
+      msg = `Se asignó el período "${globalPeriodTerm}" a ${targetLabel}.`;
+    } else if (field === "all") {
+      msg = `Se aplicaron todos los ajustes por lote a ${targetLabel}.`;
+    }
+
+    setAppliedNotification(msg);
     setTimeout(() => {
       setAppliedNotification(null);
-    }, 3500);
+    }, 4000);
   };
 
   // Subir un archivo a Cloudflare R2
@@ -1003,125 +1054,8 @@ export default function UploadPage() {
         </p>
       </div>
 
-      {/* Selector Rápido Global (Para aplicar a documentos seleccionados o a todo el lote) */}
-      <div className="relative z-30 mb-8 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-5 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="h-5 w-5 text-blue-400" />
-            <h3 className="text-sm font-bold text-white">Configuración Rápida para Lotes de Documentos</h3>
-          </div>
-          {appliedNotification && (
-            <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400 animate-fade-in">
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              {appliedNotification}
-            </span>
-          )}
-          {queue.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => handleApplyGlobal(false)}
-                disabled={selectedItemIds.length === 0}
-                type="button"
-                className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed border border-blue-500/30 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm"
-                title="Aplica esta configuración solo a los documentos que has marcado con el checkbox"
-              >
-                <CheckSquare className="h-3.5 w-3.5" />
-                <span>Aplicar a seleccionados ({selectedItemIds.length})</span>
-              </button>
-
-              <button
-                onClick={() => handleApplyGlobal(true)}
-                type="button"
-                className="flex items-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3.5 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition"
-                title="Aplica esta materia, tipo, subcategoría, año y término a todos los archivos en la cola"
-              >
-                <Copy className="h-3.5 w-3.5" />
-                <span>Aplicar a todos ({queue.length})</span>
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3 items-end">
-          {/* Materia Global */}
-          <div className="sm:col-span-2 md:col-span-4">
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Materia Global</label>
-            <SearchableSelect
-              options={allSubjectOptions}
-              value={globalSubjectId}
-              onChange={(sId) => setGlobalSubjectId(sId)}
-              placeholder="Seleccionar materia..."
-              searchPlaceholder="Escribe código (ej. CCPG1043) o nombre..."
-            />
-          </div>
-
-          {/* Categoría / Tipo Global */}
-          <div className="sm:col-span-1 md:col-span-2">
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Tipo / Categoría</label>
-            <select
-              value={globalCategory}
-              onChange={(e) => {
-                const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
-                setGlobalCategory(newCat);
-                const subOpts = getSubcategoryOptions(newCat);
-                setGlobalSubcategory(subOpts[0]);
-              }}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-            >
-              <option value="EXAMEN">Exámenes</option>
-              <option value="LECCION">Lecciones</option>
-              <option value="TALLER">Talleres</option>
-              <option value="CLASE">Clases y Apuntes</option>
-              <option value="TAREA">Material de Entrenamiento</option>
-            </select>
-          </div>
-
-          {/* Subcategoría Global */}
-          <div className="sm:col-span-1 md:col-span-2">
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Subcategoría</label>
-            <select
-              value={globalSubcategory}
-              onChange={(e) => setGlobalSubcategory(e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-            >
-              {getSubcategoryOptions(globalCategory).map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Año Global */}
-          <div className="sm:col-span-1 md:col-span-2">
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Año Evaluado</label>
-            <input
-              type="text"
-              placeholder="2026"
-              value={globalYear}
-              onChange={(e) => setGlobalYear(e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-            />
-          </div>
-
-          {/* Periodo Académico Global */}
-          <div className="sm:col-span-1 md:col-span-2">
-            <label className="block text-xs font-medium text-zinc-400 mb-1">Periodo (PAO/PAE)</label>
-            <select
-              value={globalPeriodTerm}
-              onChange={(e) => setGlobalPeriodTerm(e.target.value)}
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
-            >
-              <option value="1PAO">1PAO (1er Término)</option>
-              <option value="2PAO">2PAO (2do Término)</option>
-              <option value="PAE">PAE (Académico Especial)</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       {/* Zona de Arrastre / Selección de Múltiples Archivos o Enlace de Drive */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         
         {/* Subida de Archivos Locales (Múltiple) */}
         <div className="md:col-span-2 relative flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-zinc-800 bg-zinc-900/30 p-8 text-center hover:border-blue-500/50 hover:bg-zinc-900/50 transition">
@@ -1200,6 +1134,214 @@ export default function UploadPage() {
           </button>
         </div>
 
+      </div>
+
+      {/* Configuración Rápida para Lotes de Documentos (Ubicada justo debajo de la subida y arriba del lote) */}
+      <div className="relative z-30 mb-8 rounded-3xl border border-zinc-800 bg-zinc-900/60 p-5 sm:p-6 backdrop-blur-md shadow-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <GraduationCap className="h-5 w-5 text-blue-400" />
+              <h3 className="text-sm font-bold text-white">Configuración Rápida para Lotes de Documentos</h3>
+            </div>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Aplica ajustes masivos o usa los botones individuales de cada columna para cambiar solo un aspecto específico.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {appliedNotification && (
+              <span className="flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-400 animate-fade-in">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                {appliedNotification}
+              </span>
+            )}
+
+            {queue.length > 0 && (
+              <>
+                <button
+                  onClick={() => handleApplyField("all", false)}
+                  disabled={selectedItemIds.length === 0}
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed border border-blue-500/30 px-3.5 py-1.5 text-xs font-bold text-white transition shadow-sm"
+                  title="Aplica todos estos campos solo a los documentos seleccionados"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span>Aplicar todo a seleccionados ({selectedItemIds.length})</span>
+                </button>
+
+                <button
+                  onClick={() => handleApplyField("all", true)}
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-3.5 py-1.5 text-xs font-semibold text-zinc-300 hover:text-white transition"
+                  title="Aplica todos estos campos (materia, tipo, subcategoría, año y periodo) a todo el lote"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span>Aplicar todo a todos ({queue.length})</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Columnas con Selectores y Botones de Aplicación Individual */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-3.5 items-end">
+          
+          {/* 1. Materia Global */}
+          <div className="sm:col-span-2 md:col-span-4">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300">Materia Global</label>
+              <button
+                type="button"
+                onClick={() => handleApplyField("subject")}
+                disabled={queue.length === 0 || !globalSubjectId}
+                className="flex items-center gap-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 px-2 py-0.5 text-[11px] font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title={
+                  selectedItemIds.length > 0
+                    ? `Aplicar solo esta materia a ${selectedItemIds.length} seleccionados`
+                    : `Aplicar solo esta materia a todos (${queue.length})`
+                }
+              >
+                <Check className="h-3 w-3" />
+                <span>Aplicar Materia</span>
+              </button>
+            </div>
+            <SearchableSelect
+              options={allSubjectOptions}
+              value={globalSubjectId}
+              onChange={(sId) => setGlobalSubjectId(sId)}
+              placeholder="Seleccionar materia..."
+              searchPlaceholder="Escribe código (ej. CCPG1043) o nombre..."
+            />
+          </div>
+
+          {/* 2. Categoría / Tipo Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300 truncate">Tipo / Categoría</label>
+              <button
+                type="button"
+                onClick={() => handleApplyField("category")}
+                disabled={queue.length === 0}
+                className="flex items-center gap-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 px-2 py-0.5 text-[11px] font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title={
+                  selectedItemIds.length > 0
+                    ? `Aplicar solo este tipo a ${selectedItemIds.length} seleccionados`
+                    : `Aplicar solo este tipo a todos (${queue.length})`
+                }
+              >
+                <Check className="h-3 w-3" />
+                <span>Aplicar Tipo</span>
+              </button>
+            </div>
+            <select
+              value={globalCategory}
+              onChange={(e) => {
+                const newCat = e.target.value as "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
+                setGlobalCategory(newCat);
+                const subOpts = getSubcategoryOptions(newCat);
+                setGlobalSubcategory(subOpts[0]);
+              }}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            >
+              <option value="EXAMEN">Exámenes</option>
+              <option value="LECCION">Lecciones</option>
+              <option value="TALLER">Talleres</option>
+              <option value="CLASE">Clases y Apuntes</option>
+              <option value="TAREA">Material de Entrenamiento</option>
+            </select>
+          </div>
+
+          {/* 3. Subcategoría Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300 truncate">Subcategoría</label>
+              <button
+                type="button"
+                onClick={() => handleApplyField("subcategory")}
+                disabled={queue.length === 0}
+                className="flex items-center gap-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 px-2 py-0.5 text-[11px] font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title={
+                  selectedItemIds.length > 0
+                    ? `Aplicar solo esta subcategoría a ${selectedItemIds.length} seleccionados`
+                    : `Aplicar solo esta subcategoría a todos (${queue.length})`
+                }
+              >
+                <Check className="h-3 w-3" />
+                <span>Aplicar Subcat.</span>
+              </button>
+            </div>
+            <select
+              value={globalSubcategory}
+              onChange={(e) => setGlobalSubcategory(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            >
+              {getSubcategoryOptions(globalCategory).map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Año Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300 truncate">Año Evaluado</label>
+              <button
+                type="button"
+                onClick={() => handleApplyField("year")}
+                disabled={queue.length === 0}
+                className="flex items-center gap-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 px-2 py-0.5 text-[11px] font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title={
+                  selectedItemIds.length > 0
+                    ? `Aplicar solo este año a ${selectedItemIds.length} seleccionados`
+                    : `Aplicar solo este año a todos (${queue.length})`
+                }
+              >
+                <Check className="h-3 w-3" />
+                <span>Aplicar Año</span>
+              </button>
+            </div>
+            <input
+              type="text"
+              placeholder="2026"
+              value={globalYear}
+              onChange={(e) => setGlobalYear(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            />
+          </div>
+
+          {/* 5. Periodo Académico Global */}
+          <div className="sm:col-span-1 md:col-span-2">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label className="block text-xs font-semibold text-zinc-300 truncate">Periodo (PAO/PAE)</label>
+              <button
+                type="button"
+                onClick={() => handleApplyField("term")}
+                disabled={queue.length === 0}
+                className="flex items-center gap-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 hover:border-blue-500/30 px-2 py-0.5 text-[11px] font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                title={
+                  selectedItemIds.length > 0
+                    ? `Aplicar solo este período a ${selectedItemIds.length} seleccionados`
+                    : `Aplicar solo este período a todos (${queue.length})`
+                }
+              >
+                <Check className="h-3 w-3" />
+                <span>Aplicar Periodo</span>
+              </button>
+            </div>
+            <select
+              value={globalPeriodTerm}
+              onChange={(e) => setGlobalPeriodTerm(e.target.value)}
+              className="w-full rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-xs text-white focus:border-blue-500 focus:outline-none"
+            >
+              <option value="1PAO">1PAO (1er Término)</option>
+              <option value="2PAO">2PAO (2do Término)</option>
+              <option value="PAE">PAE (Académico Especial)</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       {/* Lista / Cola de Documentos a Subir */}
