@@ -18,7 +18,9 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  Sparkles
+  Sparkles,
+  CheckSquare,
+  Square
 } from "lucide-react";
 import { DocumentItem, AttachmentItem } from "./DocumentCard";
 import { SearchableSelect, SearchableOption } from "./SearchableSelect";
@@ -53,6 +55,7 @@ export function EditDocumentModal({
   const [selectedSubjectId, setSelectedSubjectId] = useState<string>(
     initialDoc.subjectId || initialDoc.subject?.id || ""
   );
+  const [isSolution, setIsSolution] = useState<boolean>(false);
 
   // Anexos
   const [attachments, setAttachments] = useState<AttachmentItem[]>(
@@ -147,6 +150,8 @@ export function EditDocumentModal({
       setPeriodYear(parsedInitialYear);
       setPeriodTerm(formatPeriodTerm(initialDoc.periodTerm) || "1PAO");
       setSelectedSubjectId(initialDoc.subjectId || initialDoc.subject?.id || "");
+      const initialIsSol = detectIsSolution(initialDoc.title);
+      setIsSolution(initialIsSol);
       setAttachments(Array.isArray(initialDoc.attachments) ? [...initialDoc.attachments] : []);
       setShowAddAttachment(false);
       setNewAttName("");
@@ -177,23 +182,36 @@ export function EditDocumentModal({
     newCat: "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA",
     newSubcat: string,
     newYear: number,
-    newTerm: string
+    newTerm: string,
+    newIsSol: boolean = isSolution
   ) => {
     if (
       (newCat === "EXAMEN" || newCat === "LECCION" || newCat === "TALLER") &&
       newSubcat !== "Otro"
     ) {
-      const isSol = detectIsSolution(title) || detectIsSolution(initialDoc.title);
       const generated = generateCleanDocumentTitle({
         category: newCat,
         subcategory: newSubcat,
         periodYear: newYear > 0 ? String(newYear) : "S/F",
         periodTerm: newTerm,
-        isSolution: isSol,
+        isSolution: newIsSol,
         originalFilename: initialDoc.title,
       });
       setTitle(generated);
+    } else {
+      const clean = title.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
+      if (newIsSol) {
+        setTitle(`${clean} (Solución)`);
+      } else {
+        setTitle(clean);
+      }
     }
+  };
+
+  const handleToggleSolution = () => {
+    const nextSol = !isSolution;
+    setIsSolution(nextSol);
+    autoUpdateTitle(category, subcategory, periodYear, periodTerm, nextSol);
   };
 
   const handleAddAttachment = () => {
@@ -334,13 +352,12 @@ export function EditDocumentModal({
                 <button
                   type="button"
                   onClick={() => {
-                    const isSol = detectIsSolution(title) || detectIsSolution(initialDoc.title);
                     const generated = generateCleanDocumentTitle({
                       category,
                       subcategory,
                       periodYear: periodYear > 0 ? String(periodYear) : "S/F",
                       periodTerm,
-                      isSolution: isSol,
+                      isSolution,
                       originalFilename: initialDoc.title,
                     });
                     setTitle(generated);
@@ -428,7 +445,7 @@ export function EditDocumentModal({
                     const val = parseInt(e.target.value, 10);
                     const newYear = isNaN(val) ? 0 : val;
                     setPeriodYear(newYear);
-                    autoUpdateTitle(category, subcategory, newYear, periodTerm);
+                    autoUpdateTitle(category, subcategory, newYear, periodTerm, isSolution);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -452,7 +469,7 @@ export function EditDocumentModal({
                   onChange={(e) => {
                     const newTerm = e.target.value;
                     setPeriodTerm(newTerm);
-                    autoUpdateTitle(category, subcategory, periodYear, newTerm);
+                    autoUpdateTitle(category, subcategory, periodYear, newTerm, isSolution);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -479,7 +496,7 @@ export function EditDocumentModal({
                     const newSubcat = subcategoryOptions[newCat]?.[0] || "General";
                     setCategory(newCat);
                     setSubcategory(newSubcat);
-                    autoUpdateTitle(newCat, newSubcat, periodYear, periodTerm);
+                    autoUpdateTitle(newCat, newSubcat, periodYear, periodTerm, isSolution);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -501,7 +518,7 @@ export function EditDocumentModal({
                   onChange={(e) => {
                     const newSubcat = e.target.value;
                     setSubcategory(newSubcat);
-                    autoUpdateTitle(category, newSubcat, periodYear, periodTerm);
+                    autoUpdateTitle(category, newSubcat, periodYear, periodTerm, isSolution);
                   }}
                   className="w-full rounded-xl border border-zinc-700 bg-zinc-950 px-3.5 py-2.5 text-sm text-zinc-100 focus:border-blue-500 focus:outline-none"
                 >
@@ -513,6 +530,39 @@ export function EditDocumentModal({
                 </select>
               </div>
 
+            </div>
+
+            {/* Opción / Botón Interactivo de Solución */}
+            <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <span className="text-xs font-bold text-zinc-200 block">¿Contiene Solución / Respuestas?</span>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Indica si este documento incluye solucionario, rúbrica o preguntas resueltas.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleSolution}
+                className={`flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-bold transition shadow-sm shrink-0 active:scale-95 ${
+                  isSolution
+                    ? "border-teal-500/50 bg-teal-500/20 text-teal-300 hover:bg-teal-500/30 shadow-teal-500/10"
+                    : "border-zinc-700/80 bg-zinc-800/80 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                }`}
+                title="Haz clic para marcar o desmarcar si incluye solución"
+              >
+                {isSolution ? (
+                  <>
+                    <CheckSquare className="h-4 w-4 text-teal-400" />
+                    <span>Incluye Solución ✓</span>
+                  </>
+                ) : (
+                  <>
+                    <Square className="h-4 w-4 text-zinc-500" />
+                    <span>Sin Solución</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {subcategory === "Otro" && (
