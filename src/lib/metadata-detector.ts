@@ -112,12 +112,54 @@ export function detectIsSolution(combinedText: string): boolean {
  * Genera un título limpio y estandarizado para Exámenes, Lecciones y Talleres.
  * Para Clases y Tareas preserva el nombre descriptivo original.
  */
+/**
+ * Formatea un título agregando el sufijo de versión `(v2)`, `(v3)`, etc.
+ * Si el título ya contiene `(Solución)`, ubica la versión antes del indicador de solución.
+ * Para versiones <= 1, devuelve el título sin etiqueta de versión.
+ */
+export function formatVersionedTitle(baseTitle: string, versionNumber: number): string {
+  if (!baseTitle) return "";
+  if (versionNumber <= 1) return baseTitle;
+
+  // Remover cualquier sufijo de versión previo (ej: (v2), (v3))
+  let cleanTitle = baseTitle.replace(/\s*\(v\d+\)/gi, "").trim();
+
+  // Verificar si tiene sufijo de solución al final
+  const isSol = /\(soluci[oó]n\)$/i.test(cleanTitle);
+  if (isSol) {
+    cleanTitle = cleanTitle.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
+    return `${cleanTitle} (v${versionNumber}) (Solución)`;
+  }
+
+  return `${cleanTitle} (v${versionNumber})`;
+}
+
+/**
+ * Extrae el número de versión de un título (ej: "Lección 1 2024 1PAO (v2)" -> 2).
+ * Si no contiene versión explícita, retorna 1.
+ */
+export function extractVersionFromTitle(title: string): number {
+  if (!title) return 1;
+  const match = title.match(/\(v(\d+)\)/i);
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    return isNaN(num) || num < 1 ? 1 : num;
+  }
+  return 1;
+}
+
+/**
+ * Genera un título limpio y estandarizado para Exámenes, Lecciones y Talleres.
+ * Para Clases y Tareas preserva el nombre descriptivo original.
+ * Soporta versionamiento opcional para lecciones y talleres (v2, v3, etc.).
+ */
 export function generateCleanDocumentTitle(metadata: {
   category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;
   periodYear: string;
   periodTerm: string;
   isSolution: boolean;
+  version?: number;
   originalFilename?: string;
 }): string {
   const isSol = metadata.isSolution;
@@ -128,6 +170,7 @@ export function generateCleanDocumentTitle(metadata: {
       : "";
   const termStr = metadata.periodTerm || "1PAO";
   const periodTag = yearStr ? (termStr ? ` ${yearStr} ${termStr}` : ` ${yearStr}`) : "";
+  const versionNum = metadata.version || 1;
 
   if (metadata.category === "EXAMEN") {
     let examName = "Examen Parcial";
@@ -140,12 +183,14 @@ export function generateCleanDocumentTitle(metadata: {
 
   if (metadata.category === "LECCION") {
     const sub = metadata.subcategory && metadata.subcategory !== "Otro" ? metadata.subcategory : "Lección";
-    return `${sub}${periodTag}${solSuffix}`.trim();
+    const base = `${sub}${periodTag}${solSuffix}`.trim();
+    return formatVersionedTitle(base, versionNum);
   }
 
   if (metadata.category === "TALLER") {
     const sub = metadata.subcategory && metadata.subcategory !== "Otro" ? metadata.subcategory : "Taller";
-    return `${sub}${periodTag}${solSuffix}`.trim();
+    const base = `${sub}${periodTag}${solSuffix}`.trim();
+    return formatVersionedTitle(base, versionNum);
   }
 
   // Para CLASE y TAREA (Material de Entrenamiento):
@@ -156,7 +201,8 @@ export function generateCleanDocumentTitle(metadata: {
     .replace(/\s+/g, " ")
     .trim();
 
-  return cleanOriginal || `${metadata.subcategory || "Documento"}${periodTag}${solSuffix}`.trim();
+  const base = cleanOriginal || `${metadata.subcategory || "Documento"}${periodTag}${solSuffix}`.trim();
+  return formatVersionedTitle(base, versionNum);
 }
 
 /**

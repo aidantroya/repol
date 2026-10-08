@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { DocumentCategory } from "@prisma/client";
 import { computeSemanticContentHash } from "@/lib/content-hash";
-import { detectDocumentMetadataHybrid } from "@/lib/metadata-detector";
+import { 
+  detectDocumentMetadataHybrid, 
+  formatVersionedTitle, 
+  extractVersionFromTitle 
+} from "@/lib/metadata-detector";
 
 export async function POST(req: Request) {
   try {
@@ -233,10 +238,61 @@ export async function POST(req: Request) {
     // 3. Verificación especial de examen duplicado por nombre/periodo (solo para exámenes)
     const possibleExamDuplicate = await checkExamDuplicateByName();
 
+    // 4. Para actividades que NO son exámenes (Lecciones, Talleres, etc.), si tienen diferente hash pero coinciden en materia, año, periodo y subcategoría, calcular la versión v2, v3, etc.
+    let suggestedVersion = 1;
+    let versionedTitle = effectiveTitle;
+
+    if (effectiveCategory !== "EXAMEN" && effectiveSubjectId && effectiveSubcategory) {
+      const existingSameCategoryDocs = await prisma.document.findMany({
+        where: {
+          subjectId: effectiveSubjectId,
+          category: effectiveCategory as DocumentCategory,
+          subcategory: effectiveSubcategory,
+          periodYear: effectiveYearNum,
+          periodTerm: effectiveTerm || undefined,
+        },
+        select: { title: true },
+      });
+
+      const existingSameCategorySubs = await prisma.submission.findMany({
+        where: {
+          subjectId: effectiveSubjectId,
+          category: effectiveCategory as DocumentCategory,
+          subcategory: effectiveSubcategory,
+          periodYear: effectiveYearNum,
+          periodTerm: effectiveTerm || undefined,
+          status: "PENDING",
+        },
+        select: { title: true },
+      });
+
+      const allMatchingTitles = [
+        ...existingSameCategoryDocs.map((d) => d.title),
+        ...existingSameCategorySubs.map((s) => s.title),
+      ];
+
+      if (allMatchingTitles.length > 0) {
+        const versions = allMatchingTitles.map((t) => extractVersionFromTitle(t));
+        const maxExistingVersion = Math.max(1, ...versions);
+        suggestedVersion = maxExistingVersion + 1;
+        versionedTitle = formatVersionedTitle(effectiveTitle, suggestedVersion);
+      }
+    }
+
+    const finalMetadata = detectedMetadata
+      ? {
+          ...detectedMetadata,
+          suggestedTitle: versionedTitle,
+          version: suggestedVersion,
+        }
+      : null;
+
     return NextResponse.json({
       exists: false,
       fileHash,
-      detectedMetadata,
+      detectedMetadata: finalMetadata,
+      suggestedVersion,
+      suggestedTitle: versionedTitle,
       possibleExamDuplicate,
     });
   } catch (error) {

@@ -27,7 +27,13 @@ import {
 } from "lucide-react";
 import { calculateSHA256, formatBytes } from "@/lib/utils";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
-import { detectDocumentMetadata, generateCleanDocumentTitle, DetectedDocumentMetadata, SubjectOption } from "@/lib/metadata-detector";
+import { 
+  detectDocumentMetadata, 
+  generateCleanDocumentTitle, 
+  formatVersionedTitle,
+  DetectedDocumentMetadata, 
+  SubjectOption 
+} from "@/lib/metadata-detector";
 import { PdfViewerModal } from "@/components/PdfViewerModal";
 
 interface DriveFolderChildItem {
@@ -776,8 +782,8 @@ export default function UploadPage() {
 
     const selectedSubject = allSubjectOptions.find((s) => s.value === globalSubjectId);
 
-    setQueue((prev) =>
-      prev.map((item) => {
+    setQueue((prev) => {
+      const updatedList = prev.map((item) => {
         if (!targetIds.has(item.id)) return item;
 
         let updatedCat = item.category;
@@ -828,8 +834,23 @@ export default function UploadPage() {
           periodTerm: updatedTerm,
           title: newTitle,
         };
-      })
-    );
+      });
+
+      // Auto-versionar títulos para ítems que no sean exámenes si comparten los mismos metadatos en la cola con contenido diferente
+      const groupCounts: Record<string, number> = {};
+      return updatedList.map((item) => {
+        if (item.category === "EXAMEN" || !item.subjectId) return item;
+        const groupKey = `${item.subjectId}-${item.category}-${item.subcategory}-${item.periodYear}-${item.periodTerm}`;
+        const currentCount = (groupCounts[groupKey] || 0) + 1;
+        groupCounts[groupKey] = currentCount;
+
+        if (currentCount > 1) {
+          const versioned = formatVersionedTitle(item.title, currentCount);
+          return { ...item, title: versioned };
+        }
+        return item;
+      });
+    });
 
     const count = targetIds.size;
     const targetLabel = count === 1 ? "1 documento" : `${count} documentos`;
