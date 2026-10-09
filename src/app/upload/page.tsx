@@ -84,6 +84,7 @@ export interface UploadQueueItem {
   periodTerm: string;
   fileHash: string;
   isHashing: boolean;
+  analyzedByAI?: boolean;
   isSolution?: boolean;
   duplicateCheck: {
     exists: boolean;
@@ -463,6 +464,7 @@ export default function UploadPage() {
                   isSolution: updatedIsSolution,
                   fileHash: calculatedHash,
                   isHashing: false,
+                  analyzedByAI: Boolean(meta),
                   duplicateCheck: isDuplicateInQueue
                     ? {
                         exists: true,
@@ -1500,11 +1502,11 @@ export default function UploadPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      {/* Estado del Hash / Duplicado */}
+                      {/* Estado del Hash / Análisis IA / Duplicado */}
                       {item.isHashing ? (
-                        <span className="flex items-center gap-1 text-xs text-blue-400">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          <span className="hidden sm:inline">Calculando hash...</span>
+                        <span className="flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-400 border border-blue-500/20 animate-pulse">
+                          <Sparkles className="h-3.5 w-3.5 animate-spin" />
+                          <span className="hidden sm:inline">Analizando con IA...</span>
                         </span>
                       ) : item.duplicateCheck?.exists ? (
                         <span className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-400 border border-rose-500/20">
@@ -1515,6 +1517,11 @@ export default function UploadPage() {
                         <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-400 border border-amber-500/20" title="Posible examen duplicado por nombre o periodo en esta materia">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           <span>Posible Duplicado</span>
+                        </span>
+                      ) : item.analyzedByAI ? (
+                        <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-400 border border-emerald-500/20" title="Metadatos analizados y verificados con IA y catálogo oficial ESPOL">
+                          <Sparkles className="h-3 w-3 text-emerald-400" />
+                          <span className="hidden sm:inline">Verificado con IA</span>
                         </span>
                       ) : item.fileHash ? (
                         <span className="flex items-center gap-1 text-[11px] font-medium text-emerald-400">

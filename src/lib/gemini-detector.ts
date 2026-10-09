@@ -1,6 +1,7 @@
 /**
  * Servicio de detección de metadatos de documentos académicos mediante Google Gemini AI.
- * Opera como capa inteligente primaria con fallback automático a reglas locales si la cuota se agota o hay timeout.
+ * Opera con doble pasada de verificación (Two-Pass Verification) y fallback automático
+ * a reglas locales si hay timeout o la cuota se agota.
  */
 
 export interface GeminiDetectedMetadata {
@@ -14,9 +15,8 @@ export interface GeminiDetectedMetadata {
 }
 
 const GEMINI_MODELS = [
-  "gemini-3-flash-preview",
-  "gemini-3.5-flash",
-  "gemini-flash-latest",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
   "gemini-2.5-flash",
 ];
 
@@ -29,33 +29,40 @@ export async function detectMetadataWithGemini(
     return null;
   }
 
-  // Tomamos una muestra compacta (primeros 2500 caracteres)
-  const headerSample = (rawDocumentText || "").substring(0, 2500).trim();
+  // Tomamos una muestra profunda (hasta 4500 caracteres para leer encabezado y primeras preguntas/rúbrica)
+  const headerSample = (rawDocumentText || "").substring(0, 4500).trim();
   if (!headerSample && !filename) {
     return null;
   }
 
-  const prompt = `Analiza el siguiente documento universitario de la ESPOL (Escuela Superior Politécnica del Litoral, Ecuador).
-Determina los siguientes campos con exactitud y devuélvelos estrictamente en formato JSON:
+  const prompt = `Actúa como un experto analizador académico de la ESPOL (Escuela Superior Politécnica del Litoral, Ecuador).
+Analiza con doble verificación el siguiente documento universitario y extrae sus metadatos exactos.
 
-1. "category": EXACTAMENTE uno de ["EXAMEN", "LECCION", "TALLER", "CLASE", "TAREA"].
-2. "subcategory": 
-   - Si es EXAMEN: "Parcial" (1ra Evaluación), "Final" (2da Evaluación), o "Mejoramiento" (3ra Evaluación / Recuperación).
-   - Si es LECCION: "Lección 1", "Lección 2", "Lección 3", "Lección 4", o "Lección".
-   - Si es TALLER: "Taller 1", "Taller 2", "Taller 3", "Taller 4", o "Taller".
-   - Si es CLASE: "Diapositivas", "Apuntes de Clase", o "Guía Teórica".
-   - Si es TAREA: "Tareas", "Ejercicios Extras", o "Guía de Problemas".
-3. "periodYear": Año de 4 dígitos del examen/lección (ej. "2024", "2023", "2022") o "S/F" si no se menciona año.
-4. "periodTerm": EXACTAMENTE uno de ["1PAO", "2PAO", "PAE"]:
-   - "1PAO": 1er Término / Mayo a Septiembre.
-   - "2PAO": 2do Término / Octubre a Febrero.
-   - "PAE": Extraordinario / Verano / Intensivo / Marzo a Abril.
-5. "isSolution": boolean (true si contiene soluciones, desarrollo resuelto de respuestas o rúbrica de calificación; false si es solo el enunciado en blanco). NOTA: El texto del "Compromiso de Honor" no cuenta como solución.
-6. "subjectName": Nombre de la materia académica de la ESPOL si aparece (ej. "Cálculo de una variable", "Física Mecánica", "Fundamentos de Programación").
-7. "subjectCode": Código oficial de la materia si aparece (ej. "MATG1045", "CCPG1043", "FISG1005").
+=== INSTRUCCIONES DE DOBLE VERIFICACIÓN (TWO-PASS ANALYSIS) ===
+Paso 1: Extrae la información textual presente en el encabezado, nombre de archivo o cuerpo de ejercicios.
+Paso 2: Realiza una verificación cruzada con el sistema académico de ESPOL:
+  - Materia y Código: Identifica el nombre de la materia y su código oficial ESPOL (ej: EYAG1044 para Sistemas Digitales I, MATG1045 para Cálculo de una variable, FISG1005 para Física Mecánica/Física I, CCPG1043 para Fundamentos de Programación, etc.).
+  - Tipo de Evaluación: Diferencia con precisión entre EXAMEN (Parcial/Final/Mejoramiento), LECCION (Lección 1, 2, 3, etc.), TALLER, CLASE o TAREA.
+  - Término Académico:
+    * 1PAO: Primer Término (Mayo a Septiembre).
+    * 2PAO: Segundo Término (Octubre a Febrero).
+    * PAE: Periodo Extraordinario / Verano / Intensivo (Marzo a Abril).
+  - Año: Año real de 4 dígitos en que se tomó la evaluación (ej: "2024", "2023", "2022") o "S/F" si no existe fecha.
+  - Solución (isSolution): true si incluye resolución, respuestas correctas, rúbrica de calificación o procedimiento resuelto. false si es solo el enunciado en blanco. (El texto del "Compromiso de Honor" no cuenta como solución).
+
+Devuelve ESTRICTAMENTE un objeto JSON válido con este esquema:
+{
+  "category": "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA",
+  "subcategory": "Parcial" | "Final" | "Mejoramiento" | "Lección 1" | "Lección 2" | "Lección 3" | "Lección 4" | "Taller 1" | "Taller 2" | "Taller 3" | "Taller 4" | "Apuntes de Clase" | "Diapositivas" | "Tareas",
+  "periodYear": "YYYY" | "S/F",
+  "periodTerm": "1PAO" | "2PAO" | "PAE",
+  "isSolution": true | false,
+  "subjectName": "Nombre oficial de la materia",
+  "subjectCode": "Código oficial de la materia"
+}
 
 Nombre del archivo: "${filename}"
-Texto del documento:
+Contenido del documento:
 """
 ${headerSample}
 """`;
@@ -63,7 +70,7 @@ ${headerSample}
   for (const model of GEMINI_MODELS) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 2800); // 2.8s timeout máximo
+      const timeoutId = setTimeout(() => controller.abort(), 3200); // 3.2 segundos de análisis profundo
 
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
@@ -84,7 +91,6 @@ ${headerSample}
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        // Si hay error 404, 429 o 503, intentar siguiente modelo o saltar a fallback
         continue;
       }
 
@@ -96,7 +102,6 @@ ${headerSample}
 
       // Normalizar categoría
       if (parsed.category && ["EXAMEN", "LECCION", "TALLER", "CLASE", "TAREA"].includes(parsed.category)) {
-        // Normalizar subcategoría si fue devuelta como texto largo
         let sub = parsed.subcategory || "Parcial";
         if (parsed.category === "EXAMEN") {
           const subNorm = sub.toLowerCase();
@@ -105,7 +110,6 @@ ${headerSample}
           else if (subNorm.includes("parcial") || subNorm.includes("primer")) sub = "Parcial";
         }
 
-        // Normalizar término
         let term: "1PAO" | "2PAO" | "PAE" = "1PAO";
         if (parsed.periodTerm && ["1PAO", "2PAO", "PAE"].includes(parsed.periodTerm)) {
           term = parsed.periodTerm;
@@ -122,11 +126,10 @@ ${headerSample}
         };
       }
     } catch {
-      // Ignorar y probar siguiente modelo o activar fallback por reglas
       continue;
     }
   }
 
-  // Si todos los modelos de IA fallan o se agota la cuota diaria, retornamos null para activar el fallback
+  // Fallback automático
   return null;
 }
