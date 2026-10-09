@@ -14,10 +14,14 @@ export interface GeminiDetectedMetadata {
   subjectCode?: string;
 }
 
+// Configuración de certificados TLS para entornos de desarrollo/servidor
+if (typeof process !== "undefined" && process.env && process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0") {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+}
+
 const GEMINI_MODELS = [
-  "gemini-2.0-flash",
-  "gemini-1.5-flash",
-  "gemini-2.5-flash",
+  "gemini-3.5-flash",
+  "gemini-3.8-flash",
 ];
 
 export async function detectMetadataWithGemini(
@@ -70,8 +74,9 @@ ${headerSample}
   for (const model of GEMINI_MODELS) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3200); // 3.2 segundos de análisis profundo
+      const timeoutId = setTimeout(() => controller.abort(), 7000); // 7 segundos para análisis profundo de Gemini 3.5
 
+      console.log(`[Gemini AI] Solicitando análisis con modelo: ${model}`);
       const response = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
         {
@@ -91,6 +96,8 @@ ${headerSample}
       clearTimeout(timeoutId);
 
       if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[Gemini AI] Modelo ${model} respondió HTTP ${response.status}:`, errText.substring(0, 150));
         continue;
       }
 
@@ -115,6 +122,13 @@ ${headerSample}
           term = parsed.periodTerm;
         }
 
+        console.log(`[Gemini AI] Análisis exitoso con ${model}:`, {
+          category: parsed.category,
+          subcategory: sub,
+          subject: parsed.subjectName,
+          tokens: data.usageMetadata?.totalTokenCount
+        });
+
         return {
           category: parsed.category,
           subcategory: sub,
@@ -125,7 +139,9 @@ ${headerSample}
           subjectCode: parsed.subjectCode,
         };
       }
-    } catch {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Gemini AI] Error o timeout con modelo ${model}:`, msg);
       continue;
     }
   }
