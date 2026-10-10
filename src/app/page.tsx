@@ -342,91 +342,63 @@ export default function HomePage() {
           return;
         }
 
-        const r2Files = allFiles.filter((f) => f.source === "r2");
-        const driveFiles = allFiles.filter((f) => f.source === "gdrive");
+        // Crear un único archivo ZIP que contendrá TODOS los archivos (R2 y Google Drive)
+        const zip = new JSZip();
+        let loadedCount = 0;
 
-        // 1. Si hay archivos en Cloudflare R2, empaquetarlos en un archivo ZIP con JSZip
-        if (r2Files.length > 0) {
-          const zip = new JSZip();
-          let loadedCount = 0;
+        for (const fileItem of allFiles) {
+          try {
+            setDownloadingZip({
+              subjectCode: codeOrSlug,
+              status: `Descargando (${loadedCount + 1}/${allFiles.length}): ${fileItem.filename.substring(0, 24)}...`,
+              percent: Math.round((loadedCount / allFiles.length) * 80),
+            });
 
-          for (const fileItem of r2Files) {
-            try {
-              setDownloadingZip({
-                subjectCode: codeOrSlug,
-                status: `Descargando R2 (${loadedCount + 1}/${r2Files.length}): ${fileItem.filename.substring(0, 25)}...`,
-                percent: Math.round((loadedCount / r2Files.length) * 75),
-              });
-
-              const fileRes = await fetch(fileItem.downloadUrl);
-              if (fileRes.ok) {
-                const arrayBuf = await fileRes.arrayBuffer();
-                const folder = zip.folder(fileItem.folderPath) || zip;
-                folder.file(fileItem.filename, arrayBuf);
-              }
-            } catch (e) {
-              console.warn(`Error al descargar ${fileItem.filename} desde R2:`, e);
+            const fileRes = await fetch(fileItem.downloadUrl);
+            if (fileRes.ok) {
+              const arrayBuf = await fileRes.arrayBuffer();
+              const folder = zip.folder(fileItem.folderPath) || zip;
+              folder.file(fileItem.filename, arrayBuf);
+            } else {
+              console.warn(`Error al descargar ${fileItem.filename}: status ${fileRes.status}`);
             }
-            loadedCount++;
+          } catch (e) {
+            console.warn(`Error al descargar ${fileItem.filename}:`, e);
           }
-
-          setDownloadingZip({
-            subjectCode: codeOrSlug,
-            status: "Empaquetando archivo ZIP en tu navegador...",
-            percent: 85,
-          });
-
-          const zipBlob = await zip.generateAsync(
-            { type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } },
-            (metadata) => {
-              setDownloadingZip({
-                subjectCode: codeOrSlug,
-                status: `Comprimiendo: ${Math.round(metadata.percent)}%`,
-                percent: 85 + Math.round((metadata.percent / 100) * 15),
-              });
-            }
-          );
-
-          // Disparar la descarga del archivo ZIP de Cloudflare R2
-          const blobUrl = URL.createObjectURL(zipBlob);
-          const a = document.createElement("a");
-          a.href = blobUrl;
-          a.download = zipFilename;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(blobUrl);
+          loadedCount++;
         }
 
-        // 2. Si hay archivos alojados en Google Drive, disparar la descarga directa nativa del navegador
-        // sin pasar un solo byte por Vercel
-        if (driveFiles.length > 0) {
-          setDownloadingZip({
-            subjectCode: codeOrSlug,
-            status: `Iniciando descarga de ${driveFiles.length} documento(s) de Drive...`,
-            percent: 100,
-          });
+        setDownloadingZip({
+          subjectCode: codeOrSlug,
+          status: "Empaquetando archivo ZIP en tu navegador...",
+          percent: 85,
+        });
 
-          // Disparar las descargas de Drive con un pequeño intervalo para no saturar el navegador
-          driveFiles.forEach((df, index) => {
-            setTimeout(() => {
-              const link = document.createElement("a");
-              link.href = df.downloadUrl;
-              link.target = "_blank";
-              link.rel = "noreferrer";
-              document.body.appendChild(link);
-              link.click();
-              document.body.removeChild(link);
-            }, index * 600);
-          });
-        }
+        const zipBlob = await zip.generateAsync(
+          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } },
+          (metadata) => {
+            setDownloadingZip({
+              subjectCode: codeOrSlug,
+              status: `Comprimiendo archivo final: ${Math.round(metadata.percent)}%`,
+              percent: 85 + Math.round((metadata.percent / 100) * 15),
+            });
+          }
+        );
 
-        setTimeout(() => {
-          setDownloadingZip(null);
-        }, driveFiles.length > 0 ? driveFiles.length * 600 + 800 : 500);
+        // Disparar la descarga del archivo ZIP completo y unificado
+        const blobUrl = URL.createObjectURL(zipBlob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = zipFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+
+        setDownloadingZip(null);
       } catch (err) {
-        console.error("Error al generar el ZIP de la materia:", err);
-        alert("Ocurrió un error al preparar los archivos de la materia.");
+        console.error("Error al generar el ZIP unificado de la materia:", err);
+        alert("Ocurrió un error al preparar el archivo ZIP en tu dispositivo.");
         setDownloadingZip(null);
       }
     })();

@@ -21,6 +21,10 @@ function sanitizeBaseName(name: string): string {
   return name.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").trim();
 }
 
+const CLOUDFLARE_DRIVE_PROXY =
+  process.env.NEXT_PUBLIC_DRIVE_PROXY_URL ||
+  "https://repol-drive-proxy.aidantroya24.workers.dev";
+
 export const dynamic = "force-dynamic";
 
 export interface ZipManifestFile {
@@ -163,12 +167,13 @@ export async function GET(req: Request) {
             extractGoogleDriveFileId(doc.fileUrl);
 
           if (driveId) {
-            // URL directa a Google Drive: el navegador la descarga de forma nativa sin pasar por Vercel
-            const directDriveDownloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}&confirm=t`;
+            // Descarga a través de Cloudflare Worker con cabeceras CORS
+            // 0 BYTES consumidos en Vercel, y el navegador puede leer el binario para meterlo al ZIP
+            const workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(driveId)}`;
             filesToDownload.push({
               folderPath,
               filename: finalDocName,
-              downloadUrl: directDriveDownloadUrl,
+              downloadUrl: workerProxyUrl,
               source: "gdrive",
             });
           }
@@ -216,11 +221,11 @@ export async function GET(req: Request) {
                 const driveMeta = await getDriveFileMetadata(attDriveId);
                 const baseName = att.name || driveMeta?.name || "Anexo";
                 const attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
-                const directDriveDownloadUrl = `https://drive.google.com/uc?export=download&id=${attDriveId}&confirm=t`;
+                const workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(attDriveId)}`;
                 filesToDownload.push({
                   folderPath: attFolderPath,
                   filename: attFinalName,
-                  downloadUrl: directDriveDownloadUrl,
+                  downloadUrl: workerProxyUrl,
                   source: "gdrive",
                 });
               }
