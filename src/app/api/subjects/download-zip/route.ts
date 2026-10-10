@@ -23,6 +23,13 @@ function sanitizeBaseName(name: string): string {
 
 export const dynamic = "force-dynamic";
 
+export interface ZipManifestFile {
+  folderPath: string;
+  filename: string;
+  downloadUrl: string;
+  source: "r2" | "gdrive";
+}
+
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -128,16 +135,10 @@ export async function GET(req: Request) {
       },
     }).catch((e) => console.warn("Error incrementando stats:", e));
 
-    interface ZipEntryItem {
-      folderPath: string;
-      filename: string;
-      downloadUrl: string;
-    }
-
-    const filesToDownload: ZipEntryItem[] = [];
+    const filesToDownload: ZipManifestFile[] = [];
 
     // Generar enlaces directos (R2 presigned download URL o Google Drive direct export)
-    // para que el navegador del usuario descargue directamente con 0 bytes de Vercel Origin Transfer
+    // CERO BYTES de Vercel Origin Transfer
     await Promise.all(
       subject.documents.map(async (doc, idx) => {
         const mainCategory = categoryFolders[doc.category] || "Otros";
@@ -162,10 +163,13 @@ export async function GET(req: Request) {
             extractGoogleDriveFileId(doc.fileUrl);
 
           if (driveId) {
+            // URL directa a Google Drive: el navegador la descarga de forma nativa sin pasar por Vercel
+            const directDriveDownloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}&confirm=t`;
             filesToDownload.push({
               folderPath,
               filename: finalDocName,
-              downloadUrl: `/api/documents/download?id=${doc.id}&download=true&mode=stream`,
+              downloadUrl: directDriveDownloadUrl,
+              source: "gdrive",
             });
           }
         } else if (doc.storageKey) {
@@ -178,14 +182,10 @@ export async function GET(req: Request) {
               folderPath,
               filename: finalDocName,
               downloadUrl: presignedUrl,
+              source: "r2",
             });
           } catch (e) {
             console.warn(`Error generating presigned url for doc ${doc.id}:`, e);
-            filesToDownload.push({
-              folderPath,
-              filename: finalDocName,
-              downloadUrl: `/api/documents/download?id=${doc.id}&download=true`,
-            });
           }
         }
 
@@ -203,9 +203,6 @@ export async function GET(req: Request) {
           const attFolderPath = `${folderPath}/Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${subject.code}_${idx + 1}`;
 
           for (const att of attachmentsList) {
-            let attDownloadUrl = "";
-            let attFinalName = att.name || "Anexo";
-
             const attIsDrive =
               att.storageKey?.startsWith("gdrive:") ||
               (att.fileUrl && att.fileUrl.includes("drive.google.com"));
@@ -218,29 +215,31 @@ export async function GET(req: Request) {
               if (attDriveId) {
                 const driveMeta = await getDriveFileMetadata(attDriveId);
                 const baseName = att.name || driveMeta?.name || "Anexo";
-                attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
-                attDownloadUrl = `/api/documents/download?url=${encodeURIComponent(att.fileUrl)}&name=${encodeURIComponent(attFinalName)}&download=true&mode=stream`;
+                const attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
+                const directDriveDownloadUrl = `https://drive.google.com/uc?export=download&id=${attDriveId}&confirm=t`;
+                filesToDownload.push({
+                  folderPath: attFolderPath,
+                  filename: attFinalName,
+                  downloadUrl: directDriveDownloadUrl,
+                  source: "gdrive",
+                });
               }
             } else if (att.storageKey) {
               try {
-                attFinalName = sanitizeFileNameWithExtension(att.name, att.mimeType);
-                attDownloadUrl = await getPresignedDownloadUrl(att.storageKey, 3600, {
+                const attFinalName = sanitizeFileNameWithExtension(att.name, att.mimeType);
+                const attDownloadUrl = await getPresignedDownloadUrl(att.storageKey, 3600, {
                   responseContentDisposition: `attachment; filename="${encodeURIComponent(attFinalName)}"`,
                   responseContentType: att.mimeType || "application/octet-stream",
                 });
-              } catch {
-                attDownloadUrl = `/api/documents/download?key=${encodeURIComponent(att.storageKey)}&name=${encodeURIComponent(att.name)}&download=true`;
+                filesToDownload.push({
+                  folderPath: attFolderPath,
+                  filename: attFinalName,
+                  downloadUrl: attDownloadUrl,
+                  source: "r2",
+                });
+              } catch (e) {
+                console.warn(`Error generating presigned url for attachment:`, e);
               }
-            } else if (att.fileUrl) {
-              attDownloadUrl = att.fileUrl;
-            }
-
-            if (attDownloadUrl) {
-              filesToDownload.push({
-                folderPath: attFolderPath,
-                filename: attFinalName,
-                downloadUrl: attDownloadUrl,
-              });
             }
           }
         }
