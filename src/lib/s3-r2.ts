@@ -47,11 +47,14 @@ export async function getPresignedUploadUrl(
  */
 export async function getPresignedDownloadUrl(
   key: string,
-  expiresInSeconds = 3600
+  expiresInSeconds = 3600,
+  options?: { responseContentDisposition?: string; responseContentType?: string }
 ): Promise<string> {
   const command = new GetObjectCommand({
     Bucket: R2_BUCKET_NAME,
     Key: key,
+    ResponseContentDisposition: options?.responseContentDisposition,
+    ResponseContentType: options?.responseContentType,
   });
 
   return await getSignedUrl(s3Client, command, {

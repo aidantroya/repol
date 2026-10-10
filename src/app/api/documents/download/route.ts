@@ -124,7 +124,14 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "ID de archivo de Google Drive no válido" }, { status: 400 });
       }
 
-      // Obtener metadatos y buffer binario desde Google Drive
+      // Si no es stream explícito, redirigir directamente al link de descarga de Google Drive
+      // Esto consume 0 bytes de Fast Origin Transfer en Vercel
+      if (mode !== "stream") {
+        const driveDirectUrl = `https://drive.google.com/uc?export=download&id=${driveFileId}&confirm=t`;
+        return NextResponse.redirect(driveDirectUrl, { status: 307 });
+      }
+
+      // Obtener metadatos y buffer binario desde Google Drive (solo si se pide stream explícito)
       const [driveMeta, fileBuffer] = await Promise.all([
         getDriveFileMetadata(driveFileId),
         downloadDriveFileBuffer(driveFileId),
@@ -162,15 +169,32 @@ export async function GET(req: Request) {
     // =========================================================================
     // CASO 2: Documento almacenado en CLOUDFLARE R2
     // =========================================================================
-    if (mode === "redirect") {
+    const effectiveTitle = docTitle || targetKey || "documento";
+    const contentType = docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+    const finalFilename = formatStandardDocumentFileName({
+      title: effectiveTitle,
+      year: docYear,
+      term: docTerm,
+      subjectCode: docSubjectCode,
+      mimeType: contentType,
+    });
+
+    // Enviar una redirección directa (307) a la URL prefirmada de R2.
+    // Esto hace que el navegador descargue directamente desde Cloudflare R2 con 0 costos de egress
+    // y 0 bytes de Fast Origin Transfer en Vercel, salvo que se fuerce mode='stream'.
+    if (mode !== "stream") {
       try {
-        const presignedUrl = await getPresignedDownloadUrl(targetKey!, 3600);
-        return NextResponse.redirect(presignedUrl);
+        const presignedUrl = await getPresignedDownloadUrl(targetKey!, 3600, {
+          responseContentDisposition: `${dispositionType}; filename="${encodeURIComponent(finalFilename)}"`,
+          responseContentType: contentType,
+        });
+        return NextResponse.redirect(presignedUrl, { status: 307 });
       } catch (err) {
-        console.warn("No se pudo generar presigned download URL, procediendo con streaming directo:", err);
+        console.warn("No se pudo generar presigned download URL para redirección, procediendo con fallback de streaming:", err);
       }
     }
 
+    // Fallback: streaming a través de la función de Vercel
     const command = new GetObjectCommand({
       Bucket: R2_BUCKET_NAME,
       Key: targetKey!,
@@ -182,16 +206,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "El archivo no existe en el almacenamiento" }, { status: 404 });
     }
 
-    const effectiveTitle = docTitle || targetKey || "documento";
-    const contentType = s3Response.ContentType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
-    const finalFilename = formatStandardDocumentFileName({
-      title: effectiveTitle,
-      year: docYear,
-      term: docTerm,
-      subjectCode: docSubjectCode,
-      mimeType: contentType,
-    });
-
+    const streamContentType = s3Response.ContentType || contentType;
     const nodeStream = s3Response.Body as Readable;
     const webStream = new ReadableStream({
       start(controller) {
@@ -203,7 +218,7 @@ export async function GET(req: Request) {
 
     return new Response(webStream, {
       headers: {
-        "Content-Type": contentType,
+        "Content-Type": streamContentType,
         "Content-Disposition": `${dispositionType}; filename="${encodeURIComponent(finalFilename)}"`,
         "Cache-Control": "public, max-age=86400, stale-while-revalidate=43200",
         ...(s3Response.ContentLength && {

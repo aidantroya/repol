@@ -2,17 +2,15 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import JSZip from "jszip";
+import { getPresignedDownloadUrl } from "@/lib/s3-r2";
 import { 
-  downloadDriveFileBuffer, 
   extractGoogleDriveFileId, 
   getDriveFileMetadata 
 } from "@/lib/drive-utils";
-import { downloadR2Buffer } from "@/lib/s3-r2";
 import { 
-  sanitizeFileNameWithExtension, 
   formatStandardDocumentFileName, 
-  cleanDocumentTitle 
+  cleanDocumentTitle, 
+  sanitizeFileNameWithExtension 
 } from "@/lib/mime-utils";
 
 function sanitizeFolderName(name: string): string {
@@ -24,7 +22,6 @@ function sanitizeBaseName(name: string): string {
 }
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
 
 export async function GET(req: Request) {
   try {
@@ -79,7 +76,6 @@ export async function GET(req: Request) {
       );
     }
 
-    // Buscar materia y todos sus documentos aprobados
     const subject = await prisma.subject.findFirst({
       where: {
         OR: [
@@ -114,26 +110,6 @@ export async function GET(req: Request) {
       );
     }
 
-    const termWeights: Record<string, number> = {
-      "2PAO": 3, "2T": 3,
-      "1PAO": 2, "1T": 2,
-      "PAE": 1, "3PAO": 1, "3T": 1, "Intensivo": 1,
-    };
-
-    subject.documents.sort((a, b) => {
-      const yearA = a.periodYear || 0;
-      const yearB = b.periodYear || 0;
-      if (yearA === 0 && yearB !== 0) return 1;
-      if (yearB === 0 && yearA !== 0) return -1;
-      if (yearB !== yearA) return yearB - yearA;
-      const termA = termWeights[a.periodTerm] ?? 0;
-      const termB = termWeights[b.periodTerm] ?? 0;
-      return termB - termA;
-    });
-
-    const zip = new JSZip();
-
-    // Carpetas principales organizadas dentro del archivo ZIP
     const categoryFolders: Record<string, string> = {
       EXAMEN: "Exámenes",
       LECCION: "Lecciones",
@@ -142,63 +118,78 @@ export async function GET(req: Request) {
       CLASE: "Clases y Apuntes",
     };
 
-    let filesAddedCount = 0;
+    // Incrementar estadísticas de descarga en segundo plano
+    prisma.document.updateMany({
+      where: {
+        id: { in: subject.documents.map((d) => d.id) },
+      },
+      data: {
+        downloadCount: { increment: 1 },
+      },
+    }).catch((e) => console.warn("Error incrementando stats:", e));
 
-    // Procesar y descargar cada documento para clasificarlo en su subcarpeta correspondiente
+    interface ZipEntryItem {
+      folderPath: string;
+      filename: string;
+      downloadUrl: string;
+    }
+
+    const filesToDownload: ZipEntryItem[] = [];
+
+    // Generar enlaces directos (R2 presigned download URL o Google Drive direct export)
+    // para que el navegador del usuario descargue directamente con 0 bytes de Vercel Origin Transfer
     await Promise.all(
       subject.documents.map(async (doc, idx) => {
         const mainCategory = categoryFolders[doc.category] || "Otros";
         const subcategoryFolder = sanitizeFolderName(doc.subcategory || "General");
-        
-        // Estructura: Exámenes/Parcial, Lecciones/Lección 1, Talleres/Taller 2, etc.
-        const targetFolder = zip.folder(`${mainCategory}/${subcategoryFolder}`);
-        if (!targetFolder) return;
+        const folderPath = `${mainCategory}/${subcategoryFolder}`;
 
-        let fileBuffer: Buffer | null = null;
+        const isGoogleDrive =
+          doc.storageKey.startsWith("gdrive:") ||
+          doc.fileUrl.includes("drive.google.com");
 
-        // 1. Obtener buffer del archivo principal (Google Drive o Cloudflare R2)
-        const driveIdFromStorage = doc.storageKey.startsWith("gdrive:") 
-          ? doc.storageKey.replace("gdrive:", "") 
-          : null;
-        const driveIdFromUrl = !driveIdFromStorage && doc.fileUrl.includes("drive.google.com") 
-          ? extractGoogleDriveFileId(doc.fileUrl) 
-          : null;
-        const effectiveDriveId = driveIdFromStorage || driveIdFromUrl;
+        const finalDocName = formatStandardDocumentFileName({
+          title: doc.title,
+          year: doc.periodYear,
+          term: doc.periodTerm,
+          subjectCode: subject.code,
+          mimeType: doc.mimeType,
+        });
 
-        if (effectiveDriveId) {
-          fileBuffer = await downloadDriveFileBuffer(effectiveDriveId);
-        } else {
-          fileBuffer = await downloadR2Buffer(doc.storageKey);
-        }
+        if (isGoogleDrive) {
+          const driveId =
+            doc.storageKey.replace(/^gdrive:/, "") ||
+            extractGoogleDriveFileId(doc.fileUrl);
 
-        // Si falló la descarga directa por storageKey, intentar por URL
-        if (!fileBuffer && doc.fileUrl.startsWith("http") && !effectiveDriveId) {
+          if (driveId) {
+            filesToDownload.push({
+              folderPath,
+              filename: finalDocName,
+              downloadUrl: `/api/documents/download?id=${doc.id}&download=true`,
+            });
+          }
+        } else if (doc.storageKey) {
           try {
-            const res = await fetch(doc.fileUrl);
-            if (res.ok) {
-              const arrayBuf = await res.arrayBuffer();
-              fileBuffer = Buffer.from(arrayBuf);
-            }
+            const presignedUrl = await getPresignedDownloadUrl(doc.storageKey, 3600, {
+              responseContentDisposition: `attachment; filename="${encodeURIComponent(finalDocName)}"`,
+              responseContentType: doc.mimeType || "application/pdf",
+            });
+            filesToDownload.push({
+              folderPath,
+              filename: finalDocName,
+              downloadUrl: presignedUrl,
+            });
           } catch (e) {
-            console.warn(`No se pudo obtener archivo por URL para doc ${doc.id}:`, e);
+            console.warn(`Error generating presigned url for doc ${doc.id}:`, e);
+            filesToDownload.push({
+              folderPath,
+              filename: finalDocName,
+              downloadUrl: `/api/documents/download?id=${doc.id}&download=true`,
+            });
           }
         }
 
-        if (fileBuffer) {
-          const finalFileName = formatStandardDocumentFileName({
-            title: doc.title,
-            year: doc.periodYear,
-            term: doc.periodTerm,
-            subjectCode: subject.code,
-            mimeType: doc.mimeType,
-            buffer: fileBuffer,
-          });
-
-          targetFolder.file(finalFileName, fileBuffer);
-          filesAddedCount++;
-        }
-
-        // 2. Procesar anexos complementarios dentro de su subcarpeta correspondiente
+        // Anexos
         if (doc.attachments && Array.isArray(doc.attachments) && doc.attachments.length > 0) {
           const attachmentsList = doc.attachments as Array<{
             name: string;
@@ -209,104 +200,67 @@ export async function GET(req: Request) {
           }>;
           const cleanDocTitle = cleanDocumentTitle(doc.title, doc.periodYear, doc.periodTerm).substring(0, 30);
           const yearLabel = doc.periodYear && doc.periodYear > 0 ? doc.periodYear : "SF";
-          const attFolder = targetFolder.folder(`Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${subject.code}_${idx + 1}`);
+          const attFolderPath = `${folderPath}/Anexos_${yearLabel}_${doc.periodTerm}_${cleanDocTitle}_${subject.code}_${idx + 1}`;
 
-          if (attFolder) {
-            for (const att of attachmentsList) {
-              let attBuffer: Buffer | null = null;
-              let attDriveMeta: { id: string; name?: string; mimeType?: string } | null = null;
+          for (const att of attachmentsList) {
+            let attDownloadUrl = "";
+            let attFinalName = att.name || "Anexo";
 
-              // Identificar si el anexo proviene de Google Drive
-              const attDriveId = att.storageKey?.startsWith("gdrive:")
-                ? att.storageKey.replace("gdrive:", "")
-                : att.fileUrl && att.fileUrl.includes("drive.google.com")
-                ? extractGoogleDriveFileId(att.fileUrl)
-                : null;
+            const attIsDrive =
+              att.storageKey?.startsWith("gdrive:") ||
+              (att.fileUrl && att.fileUrl.includes("drive.google.com"));
+
+            if (attIsDrive) {
+              const attDriveId =
+                att.storageKey?.replace(/^gdrive:/, "") ||
+                extractGoogleDriveFileId(att.fileUrl);
 
               if (attDriveId) {
-                attDriveMeta = await getDriveFileMetadata(attDriveId);
-                attBuffer = await downloadDriveFileBuffer(attDriveId);
-              } else if (att.storageKey) {
-                attBuffer = await downloadR2Buffer(att.storageKey);
+                const driveMeta = await getDriveFileMetadata(attDriveId);
+                const baseName = att.name || driveMeta?.name || "Anexo";
+                attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
+                attDownloadUrl = `/api/documents/download?url=${encodeURIComponent(att.fileUrl)}&name=${encodeURIComponent(attFinalName)}&download=true`;
               }
-
-              // Fallback por URL HTTP si no se obtuvo buffer
-              if (!attBuffer && att.fileUrl && att.fileUrl.startsWith("http") && !attDriveId) {
-                try {
-                  const res = await fetch(att.fileUrl);
-                  if (res.ok) {
-                    const arrayBuf = await res.arrayBuffer();
-                    attBuffer = Buffer.from(arrayBuf);
-                  }
-                } catch {
-                  // Ignore attachment failure
-                }
+            } else if (att.storageKey) {
+              try {
+                attFinalName = sanitizeFileNameWithExtension(att.name, att.mimeType);
+                attDownloadUrl = await getPresignedDownloadUrl(att.storageKey, 3600, {
+                  responseContentDisposition: `attachment; filename="${encodeURIComponent(attFinalName)}"`,
+                  responseContentType: att.mimeType || "application/octet-stream",
+                });
+              } catch {
+                attDownloadUrl = `/api/documents/download?key=${encodeURIComponent(att.storageKey)}&name=${encodeURIComponent(att.name)}&download=true`;
               }
+            } else if (att.fileUrl) {
+              attDownloadUrl = att.fileUrl;
+            }
 
-              if (attBuffer) {
-                // Determinar el nombre con extensión apropiada
-                let baseAttName = att.name || attDriveMeta?.name || "Anexo";
-                
-                // Si el nombre no tiene extensión pero tenemos el nombre original de Drive, usar la extensión de Drive
-                if (!baseAttName.includes(".") && attDriveMeta?.name?.includes(".")) {
-                  const origExtMatch = attDriveMeta.name.match(/\.([a-zA-Z0-9]{2,5})$/);
-                  if (origExtMatch) {
-                    baseAttName = `${baseAttName}.${origExtMatch[1]}`;
-                  }
-                }
-
-                const finalAttName = sanitizeFileNameWithExtension(
-                  baseAttName,
-                  attDriveMeta?.mimeType || att.mimeType,
-                  attBuffer
-                );
-
-                attFolder.file(finalAttName, attBuffer);
-              }
+            if (attDownloadUrl) {
+              filesToDownload.push({
+                folderPath: attFolderPath,
+                filename: attFinalName,
+                downloadUrl: attDownloadUrl,
+              });
             }
           }
         }
       })
     );
 
-    if (filesAddedCount === 0) {
-      return NextResponse.json(
-        { error: "No se pudieron obtener los archivos del almacenamiento para el ZIP." },
-        { status: 500 }
-      );
-    }
-
-    // Generar archivo ZIP binario
-    const zipBuffer = await zip.generateAsync({
-      type: "nodebuffer",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-    });
-
-    // Incrementar estadísticas de descarga
-    await prisma.document.updateMany({
-      where: {
-        id: { in: subject.documents.map((d) => d.id) },
-      },
-      data: {
-        downloadCount: { increment: 1 },
-      },
-    });
-
     const zipFilename = `${sanitizeBaseName(subject.code)}_${sanitizeBaseName(subject.name)}_RePol.zip`;
 
-    return new NextResponse(new Uint8Array(zipBuffer), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${zipFilename}"`,
-        "Cache-Control": "no-store",
-      },
+    return NextResponse.json({
+      success: true,
+      subjectCode: subject.code,
+      subjectName: subject.name,
+      zipFilename,
+      totalFiles: filesToDownload.length,
+      files: filesToDownload,
     });
   } catch (error) {
-    console.error("Error al generar ZIP de la materia:", error);
+    console.error("Error al obtener manifiesto para ZIP de la materia:", error);
     return NextResponse.json(
-      { error: "Ocurrió un error al empaquetar el material de la materia." },
+      { error: "Ocurrió un error al procesar el material de la materia." },
       { status: 500 }
     );
   }

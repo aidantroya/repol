@@ -16,8 +16,10 @@ import {
   Download,
   Lock,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
+import JSZip from "jszip";
 import { DocumentCard, DocumentItem } from "@/components/DocumentCard";
 import { SearchableSelect, SearchableOption } from "@/components/SearchableSelect";
 import { formatPeriodTerm, formatPeriodYear } from "@/lib/utils";
@@ -52,6 +54,12 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState<string>("year_desc");
   const [openSubjects, setOpenSubjects] = useState<Record<string, boolean>>({});
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+
+  const [downloadingZip, setDownloadingZip] = useState<{
+    subjectCode: string;
+    status: string;
+    percent?: number;
+  } | null>(null);
 
   const [zipModalState, setZipModalState] = useState<{
     open: boolean;
@@ -305,9 +313,92 @@ export default function HomePage() {
       return;
     }
 
-    // Usuario autorizado: descargar ZIP
+    // Usuario autorizado: descargar ZIP empaquetando en el navegador (0 bytes de Vercel Origin Transfer)
     const queryParam = isSlug ? `slug=${encodeURIComponent(codeOrSlug)}` : `code=${encodeURIComponent(codeOrSlug)}`;
-    window.location.href = `/api/subjects/download-zip?${queryParam}`;
+    
+    setDownloadingZip({
+      subjectCode: codeOrSlug,
+      status: "Obteniendo lista de archivos...",
+      percent: 0,
+    });
+
+    (async () => {
+      try {
+        const manifestRes = await fetch(`/api/subjects/download-zip?${queryParam}`);
+        if (!manifestRes.ok) {
+          const errData = await manifestRes.json();
+          alert(errData.error || "No se pudo obtener el material de la materia.");
+          setDownloadingZip(null);
+          return;
+        }
+
+        const data = await manifestRes.json();
+        const files: Array<{ folderPath: string; filename: string; downloadUrl: string }> = data.files || [];
+        const zipFilename: string = data.zipFilename || `${codeOrSlug}_RePol.zip`;
+
+        if (files.length === 0) {
+          alert("No hay archivos disponibles para descargar en esta materia.");
+          setDownloadingZip(null);
+          return;
+        }
+
+        const zip = new JSZip();
+        let loadedCount = 0;
+
+        for (const fileItem of files) {
+          try {
+            setDownloadingZip({
+              subjectCode: codeOrSlug,
+              status: `Descargando (${loadedCount + 1}/${files.length}): ${fileItem.filename.substring(0, 25)}...`,
+              percent: Math.round((loadedCount / files.length) * 80),
+            });
+
+            const fileRes = await fetch(fileItem.downloadUrl);
+            if (fileRes.ok) {
+              const arrayBuf = await fileRes.arrayBuffer();
+              const folder = zip.folder(fileItem.folderPath) || zip;
+              folder.file(fileItem.filename, arrayBuf);
+            }
+          } catch (e) {
+            console.warn(`Error al descargar ${fileItem.filename}:`, e);
+          }
+          loadedCount++;
+        }
+
+        setDownloadingZip({
+          subjectCode: codeOrSlug,
+          status: "Empaquetando archivo ZIP en tu navegador...",
+          percent: 90,
+        });
+
+        const zipBlob = await zip.generateAsync(
+          { type: "blob", compression: "DEFLATE", compressionOptions: { level: 5 } },
+          (metadata) => {
+            setDownloadingZip({
+              subjectCode: codeOrSlug,
+              status: `Comprimiendo: ${Math.round(metadata.percent)}%`,
+              percent: 85 + Math.round((metadata.percent / 100) * 15),
+            });
+          }
+        );
+
+        // Disparar la descarga en el navegador
+        const blobUrl = URL.createObjectURL(zipBlob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = zipFilename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+
+        setDownloadingZip(null);
+      } catch (err) {
+        console.error("Error al generar el ZIP de la materia:", err);
+        alert("Ocurrió un error al preparar el archivo ZIP en tu dispositivo.");
+        setDownloadingZip(null);
+      }
+    })();
   };
 
   return (
@@ -602,15 +693,29 @@ export default function HomePage() {
                       {/* Botón Descargar Materia en un ZIP */}
                       <button
                         type="button"
+                        disabled={downloadingZip?.subjectCode === subj.code}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleDownloadSubjectZip(subj.code, subj.name, false);
                         }}
-                        className="flex items-center gap-2 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 px-3.5 py-2 text-xs font-bold shadow-md transition active:scale-95 group"
+                        className={`flex items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-bold shadow-md transition active:scale-95 group ${
+                          downloadingZip?.subjectCode === subj.code
+                            ? "bg-blue-600/40 border border-blue-400/50 text-blue-200 cursor-wait"
+                            : "bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30"
+                        }`}
                         title={`Descargar todo el material de ${subj.name} (${subj.code}) en formato ZIP`}
                       >
-                        <FolderArchive className="h-4 w-4 text-blue-400 group-hover:text-white" />
-                        <span>Descargar la materia en un ZIP</span>
+                        {downloadingZip?.subjectCode === subj.code ? (
+                          <>
+                            <Loader2 className="h-4 w-4 text-blue-300 animate-spin" />
+                            <span className="max-w-[200px] truncate">{downloadingZip.status}</span>
+                          </>
+                        ) : (
+                          <>
+                            <FolderArchive className="h-4 w-4 text-blue-400 group-hover:text-white" />
+                            <span>Descargar la materia en un ZIP</span>
+                          </>
+                        )}
                       </button>
 
                       <div className="flex items-center gap-2">
