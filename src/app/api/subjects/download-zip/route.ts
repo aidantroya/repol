@@ -165,7 +165,7 @@ export async function GET(req: Request) {
             filesToDownload.push({
               folderPath,
               filename: finalDocName,
-              downloadUrl: `/api/documents/download?id=${doc.id}&download=true`,
+              downloadUrl: `/api/documents/download?id=${doc.id}&download=true&mode=stream`,
             });
           }
         } else if (doc.storageKey) {
@@ -219,7 +219,7 @@ export async function GET(req: Request) {
                 const driveMeta = await getDriveFileMetadata(attDriveId);
                 const baseName = att.name || driveMeta?.name || "Anexo";
                 attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
-                attDownloadUrl = `/api/documents/download?url=${encodeURIComponent(att.fileUrl)}&name=${encodeURIComponent(attFinalName)}&download=true`;
+                attDownloadUrl = `/api/documents/download?url=${encodeURIComponent(att.fileUrl)}&name=${encodeURIComponent(attFinalName)}&download=true&mode=stream`;
               }
             } else if (att.storageKey) {
               try {
