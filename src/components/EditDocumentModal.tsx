@@ -25,7 +25,7 @@ import {
 import { DocumentItem, AttachmentItem } from "./DocumentCard";
 import { SearchableSelect, SearchableOption } from "./SearchableSelect";
 import { formatPeriodTerm } from "@/lib/utils";
-import { generateCleanDocumentTitle, detectIsSolution } from "@/lib/metadata-detector";
+import { generateCleanDocumentTitle, detectIsSolution, extractOriginalFileName } from "@/lib/metadata-detector";
 
 interface EditDocumentModalProps {
   isOpen: boolean;
@@ -178,6 +178,27 @@ export function EditDocumentModal({
     ...(typeof initialDoc.periodYear === "number" && initialDoc.periodYear > 0 ? [initialDoc.periodYear] : [])
   ])).sort((a, b) => b - a);
 
+  // Extraer el nombre original a partir del storageKey, título o datos del documento
+  const getOriginalName = (): string => {
+    if (initialDoc.storageKey) {
+      const fromKey = extractOriginalFileName(initialDoc.storageKey);
+      if (fromKey) return fromKey;
+    }
+    if (initialDoc.title) {
+      const isExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(initialDoc.title.trim());
+      if (!isExam) {
+        return initialDoc.title.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
+      }
+    }
+    if (initialDoc.customDescription && initialDoc.customDescription.trim().length <= 80) {
+      const isExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(initialDoc.customDescription.trim());
+      if (!isExam) {
+        return initialDoc.customDescription.trim();
+      }
+    }
+    return "";
+  };
+
   const autoUpdateTitle = (
     newCat: "EXAMEN" | "LECCION" | "TALLER" | "CLASE" | "TAREA",
     newSubcat: string,
@@ -185,6 +206,8 @@ export function EditDocumentModal({
     newTerm: string,
     newIsSol: boolean = isSolution
   ) => {
+    const origName = getOriginalName();
+
     if (
       (newCat === "EXAMEN" || newCat === "LECCION" || newCat === "TALLER") &&
       newSubcat !== "Otro"
@@ -195,15 +218,23 @@ export function EditDocumentModal({
         periodYear: newYear > 0 ? String(newYear) : "S/F",
         periodTerm: newTerm,
         isSolution: newIsSol,
-        originalFilename: initialDoc.title,
+        originalFilename: origName || initialDoc.title,
       });
       setTitle(generated);
     } else {
-      const clean = title.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
-      if (newIsSol) {
-        setTitle(`${clean} (Solución)`);
+      // Para CLASE, TAREA o subcategoría personalizada (actividades que conservan su nombre original):
+      // Si el documento fue clasificado como examen por error y se regresa a clase/apuntes, se recupera el nombre original.
+      const solSuffix = newIsSol ? " (Solución)" : "";
+      if (origName) {
+        setTitle(`${origName}${solSuffix}`);
       } else {
-        setTitle(clean);
+        const clean = title.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
+        const isGenericExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(clean);
+        if (isGenericExam) {
+          setTitle(`${newSubcat || "Documento"}${solSuffix}`);
+        } else {
+          setTitle(`${clean}${solSuffix}`);
+        }
       }
     }
   };
@@ -352,21 +383,15 @@ export function EditDocumentModal({
                 <button
                   type="button"
                   onClick={() => {
-                    const generated = generateCleanDocumentTitle({
-                      category,
-                      subcategory,
-                      periodYear: periodYear > 0 ? String(periodYear) : "S/F",
-                      periodTerm,
-                      isSolution,
-                      originalFilename: initialDoc.title,
-                    });
-                    setTitle(generated);
+                    autoUpdateTitle(category, subcategory, periodYear, periodTerm, isSolution);
                   }}
                   className="flex items-center gap-1 text-[11px] text-blue-400 hover:text-blue-300 font-medium transition"
-                  title="Regenerar título en formato estandarizado"
+                  title="Regenerar título adecuado para la categoría seleccionada"
                 >
                   <Sparkles className="h-3 w-3" />
-                  <span>Estandarizar título</span>
+                  <span>
+                    {category === "CLASE" || category === "TAREA" ? "Restaurar nombre original" : "Estandarizar título"}
+                  </span>
                 </button>
               </label>
               <input

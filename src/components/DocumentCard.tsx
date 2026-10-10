@@ -35,6 +35,7 @@ export interface DocumentItem {
   fileSize: number;
   mimeType: string;
   fileUrl: string;
+  storageKey?: string;
   attachments?: AttachmentItem[] | null;
   category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
   subcategory: string;

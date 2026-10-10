@@ -149,6 +149,28 @@ export function extractVersionFromTitle(title: string): number {
 }
 
 /**
+ * Extrae y limpia el nombre original del archivo a partir de storageKey, rutas o nombres de archivo.
+ */
+export function extractOriginalFileName(rawOrStorageKey: string): string {
+  if (!rawOrStorageKey) return "";
+  const withoutPath = rawOrStorageKey.replace(/^.*[\\/]/, "");
+  if (withoutPath.startsWith("gdrive:") || /^doc-\d+$/.test(withoutPath)) {
+    return "";
+  }
+  const withoutTimestamp = withoutPath.replace(/^\d{9,15}[-_]/, "");
+  const clean = withoutTimestamp
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (clean && !/^[0-9a-f]{32,64}$/i.test(clean) && clean.length > 2) {
+    return clean;
+  }
+  return "";
+}
+
+/**
  * Genera un título limpio y estandarizado para Exámenes, Lecciones y Talleres.
  * Para Clases y Tareas preserva el nombre descriptivo original.
  * Soporta versionamiento opcional para lecciones y talleres (v2, v3, etc.).
@@ -193,15 +215,23 @@ export function generateCleanDocumentTitle(metadata: {
     return formatVersionedTitle(base, versionNum);
   }
 
-  // Para CLASE y TAREA (Material de Entrenamiento):
-  // No imponer un nombre genérico para permitir que descripciones específicas se mantengan
-  const cleanOriginal = (metadata.originalFilename || "")
-    .replace(/\.[^/.]+$/, "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  // Para CLASE y TAREA (Material de Entrenamiento y Clases/Apuntes/Ejercicios):
+  // Colocar su nombre original (sin extensión, con espacios limpios)
+  const cleanOriginal = extractOriginalFileName(metadata.originalFilename || "") ||
+    (metadata.originalFilename || "")
+      .replace(/^.*[\\/]/, "")
+      .replace(/^\d{9,15}[-_]/, "")
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
 
-  const base = cleanOriginal || `${metadata.subcategory || "Documento"}${periodTag}${solSuffix}`.trim();
+  // Si no hay nombre original o era un nombre genérico de examen, usar la subcategoría
+  const isGenericExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(cleanOriginal);
+  const base = (!cleanOriginal || isGenericExam)
+    ? `${metadata.subcategory || "Documento"}${solSuffix}`.trim()
+    : `${cleanOriginal}${solSuffix}`.trim();
+
   return formatVersionedTitle(base, versionNum);
 }
 

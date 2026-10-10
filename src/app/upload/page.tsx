@@ -108,6 +108,7 @@ export interface UploadQueueItem {
     downloadUrl: string;
   } | null;
   attachments: AttachmentUploadItem[];
+  originalFilename?: string;
   status: "idle" | "uploading" | "success" | "error";
   errorMessage?: string;
   isExpanded: boolean;
@@ -371,21 +372,23 @@ export default function UploadPage() {
 
     for (let i = 0; i < fileArray.length; i++) {
       const currentFile = fileArray[i];
-      const cleanName = currentFile.name.replace(/\.[^/.]+$/, "");
+      const cleanName = currentFile.name.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
       const itemId = `doc-${Date.now()}-${i}-${Math.random().toString(36).substring(2, 6)}`;
 
       // 1. Detección inteligente preliminar e instantánea en el cliente por nombre de archivo
       const detected = detectDocumentMetadata(currentFile.name, "", subjectOptionsForDetection);
       const initialCategory = detected.confidence.category ? detected.category : "EXAMEN";
       const initialSubcategory = detected.confidence.category ? detected.subcategory : "Parcial";
-      const initialTitle = (detected.suggestedTitle && (initialCategory === "EXAMEN" || initialCategory === "LECCION" || initialCategory === "TALLER"))
+      const isNormalized = initialCategory === "EXAMEN" || initialCategory === "LECCION" || initialCategory === "TALLER";
+      const initialTitle = isNormalized && detected.suggestedTitle
         ? detected.suggestedTitle
-        : cleanName;
+        : (detected.isSolution ? `${cleanName} (Solución)` : cleanName);
 
       const item: UploadQueueItem = {
         id: itemId,
         mode: "FILE",
         file: currentFile,
+        originalFilename: currentFile.name,
         title: initialTitle,
         description: "",
         subjectId: detected.subjectId || "",
@@ -449,8 +452,12 @@ export default function UploadPage() {
                 const updatedYear = (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : q.periodYear;
                 const updatedTerm = meta?.periodTerm || q.periodTerm;
                 const updatedIsSolution = meta?.isSolution ?? q.isSolution;
-                const updatedTitle = (meta?.suggestedTitle && (updatedCategory === "EXAMEN" || updatedCategory === "LECCION" || updatedCategory === "TALLER"))
+                const isNormalized = updatedCategory === "EXAMEN" || updatedCategory === "LECCION" || updatedCategory === "TALLER";
+                const cleanOrig = (q.originalFilename || item.file?.name || "").replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
+                const updatedTitle = (isNormalized && meta?.suggestedTitle)
                   ? meta.suggestedTitle
+                  : (!isNormalized && cleanOrig)
+                  ? (updatedIsSolution ? `${cleanOrig} (Solución)` : cleanOrig)
                   : q.title;
 
                 return {
@@ -555,14 +562,17 @@ export default function UploadPage() {
         const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem & { detectedMetadata?: DetectedDocumentMetadata }, idx: number) => {
           const meta = item.detectedMetadata || detectDocumentMetadata(`${item.folderPath || ""} ${item.name}`, "", subjectOptionsForDetection);
           const itemCat = meta.category || "EXAMEN";
+          const origDriveName = item.name || `Documento ${idx + 1}`;
+          const cleanDriveOrig = origDriveName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
           const driveTitle = (meta.suggestedTitle && (itemCat === "EXAMEN" || itemCat === "LECCION" || itemCat === "TALLER"))
             ? meta.suggestedTitle
-            : (item.name || `Documento ${idx + 1}`);
+            : (meta.isSolution ? `${cleanDriveOrig} (Solución)` : cleanDriveOrig);
 
           return {
             id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
             mode: "GDRIVE",
             driveUrl: item.fileUrl,
+            originalFilename: origDriveName,
             title: driveTitle,
             description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
             subjectId: meta.subjectId || "",
@@ -602,15 +612,18 @@ export default function UploadPage() {
       const meta = data.detectedMetadata || detectDocumentMetadata(data.name || "Documento Drive", "", subjectOptionsForDetection);
       const driveCategory = meta?.category || "EXAMEN";
       const driveSubcategory = meta?.subcategory || "Parcial";
+      const origSingleName = data.name || "Documento Drive";
+      const cleanSingleOrig = origSingleName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
       const singleDriveTitle = (meta?.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
         ? meta.suggestedTitle
-        : (data.name || `Material Drive - ${new Date().toLocaleDateString()}`);
+        : (meta?.isSolution ? `${cleanSingleOrig} (Solución)` : cleanSingleOrig);
 
       const itemId = `drive-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newItem: UploadQueueItem = {
         id: itemId,
         mode: "GDRIVE",
         driveUrl: inputDriveUrl,
+        originalFilename: origSingleName,
         title: singleDriveTitle,
         description: "",
         subjectId: meta?.subjectId || "",
@@ -660,6 +673,12 @@ export default function UploadPage() {
     const merged = { ...item, ...updates };
     let newTitle = merged.title;
 
+    const origName = (merged.originalFilename || merged.file?.name || "")
+      .replace(/\.[^/.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
     if (
       merged.category === "EXAMEN" ||
       merged.category === "LECCION" ||
@@ -671,8 +690,23 @@ export default function UploadPage() {
         periodYear: merged.periodYear,
         periodTerm: merged.periodTerm,
         isSolution: !!merged.isSolution,
-        originalFilename: merged.file?.name,
+        originalFilename: origName || merged.file?.name,
       });
+    } else {
+      // Para CLASE y TAREA (actividades que no normalizan su nombre):
+      // Colocar su nombre original (ejercicios en clase, apuntes, etc.)
+      const solSuffix = merged.isSolution ? " (Solución)" : "";
+      if (origName) {
+        newTitle = `${origName}${solSuffix}`;
+      } else {
+        const clean = merged.title.replace(/\s*\(soluci[oó]n\)$/i, "").trim();
+        const isGenericExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(clean);
+        if (isGenericExam) {
+          newTitle = `${merged.subcategory || "Documento"}${solSuffix}`;
+        } else {
+          newTitle = `${clean}${solSuffix}`;
+        }
+      }
     }
 
     updateQueueItem(item.id, {
@@ -815,17 +849,25 @@ export default function UploadPage() {
           updatedTerm = globalPeriodTerm;
         }
 
-        const newTitle =
-          updatedCat === "EXAMEN" || updatedCat === "LECCION" || updatedCat === "TALLER"
-            ? generateCleanDocumentTitle({
-                category: updatedCat,
-                subcategory: updatedSub,
-                periodYear: updatedYear,
-                periodTerm: updatedTerm,
-                isSolution: !!item.isSolution,
-                originalFilename: item.file?.name,
-              })
-            : item.title;
+        const origName = (item.originalFilename || item.file?.name || "")
+          .replace(/\.[^/.]+$/, "")
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        const isNormalized = updatedCat === "EXAMEN" || updatedCat === "LECCION" || updatedCat === "TALLER";
+        const solSuffix = item.isSolution ? " (Solución)" : "";
+
+        const newTitle = isNormalized
+          ? generateCleanDocumentTitle({
+              category: updatedCat,
+              subcategory: updatedSub,
+              periodYear: updatedYear,
+              periodTerm: updatedTerm,
+              isSolution: !!item.isSolution,
+              originalFilename: origName || item.file?.name,
+            })
+          : (origName ? `${origName}${solSuffix}` : item.title);
 
         return {
           ...item,
@@ -1621,8 +1663,43 @@ export default function UploadPage() {
                       {/* Título y Descripción */}
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-zinc-400 mb-1">
-                            Título del Documento *
+                          <label className="block text-xs font-medium text-zinc-400 mb-1 flex items-center justify-between">
+                            <span>Título del Documento *</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const origName = (item.originalFilename || item.file?.name || "")
+                                  .replace(/\.[^/.]+$/, "")
+                                  .replace(/[_-]+/g, " ")
+                                  .replace(/\s+/g, " ")
+                                  .trim();
+
+                                if (
+                                  item.category === "EXAMEN" ||
+                                  item.category === "LECCION" ||
+                                  item.category === "TALLER"
+                                ) {
+                                  const generated = generateCleanDocumentTitle({
+                                    category: item.category,
+                                    subcategory: item.subcategory,
+                                    periodYear: item.periodYear,
+                                    periodTerm: item.periodTerm,
+                                    isSolution: !!item.isSolution,
+                                    originalFilename: origName || item.file?.name,
+                                  });
+                                  updateQueueItem(item.id, { title: generated });
+                                } else {
+                                  const solSuffix = item.isSolution ? " (Solución)" : "";
+                                  const fallback = origName ? `${origName}${solSuffix}` : item.title;
+                                  updateQueueItem(item.id, { title: fallback });
+                                }
+                              }}
+                              className="text-[11px] text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium transition"
+                              title="Regenerar título adecuado para la categoría"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              <span>{item.category === "CLASE" || item.category === "TAREA" ? "Restaurar original" : "Estandarizar"}</span>
+                            </button>
                           </label>
                           <input
                             type="text"
