@@ -443,54 +443,47 @@ export function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" 
 
   const norm = normalizeString(combinedText);
 
-  // 1. Detección explícita de 1PAO / 1er Término / 1T / I Término / I Semestre
+  // 1. Detección explícita de PAE / 3PAO / 3er Término / 3T / Extraordinario / Verano / Intensivo
   if (
-    /\b(?:1\s*pao|i\s*pao|1\s*t|i\s*t|t\s*1|t\s*i)\b/.test(norm) ||
-    /\b(?:termino|termtno)\s+(?:1|i|uno)\b/.test(norm) ||
-    /\b(?:1\s*er|1\s*ro|primer|primero|i)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
-    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:primer|primero|1\s*er|1\s*ro|1|i|uno)\b/.test(norm) ||
-    /\b(?:19|20)\d\d\s*[-_./]\s*(?:1|i|1pao|1t)\b/i.test(combinedText)
+    /\b(?:pae|p\s*a\s*e|intensivo|extraordinario|verano)\b/.test(norm) ||
+    /\b(?:3\s*pao|iii\s*pao|3\s*t|iii\s*t)\b/.test(norm) ||
+    /\b(?:termino|termtno)\s+(?:3|iii|tres|tercero?)\b/.test(norm) ||
+    /\b(?:3\s*er|3\s*ro|tercer|tercero|iii)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
+    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:tercer|tercero|3\s*er|3\s*ro|3|iii|tres|extraordinario|pae)\b/.test(norm) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:3|iii|pae|3t)\b/i.test(combinedText) ||
+    /\bpao\s*(?:3|iii|tres)\b/.test(norm)
   ) {
-    return { term: "1PAO", detected: true };
+    return { term: "PAE", detected: true };
   }
 
   // 2. Detección explícita de 2PAO / 2do Término / 2T / II Término / II Semestre
   if (
-    /\b(?:2\s*pao|ii\s*pao|2\s*t|ii\s*t|t\s*2|t\s*ii)\b/.test(norm) ||
+    /\b(?:2\s*pao|ii\s*pao|2\s*t|ii\s*t)\b/.test(norm) ||
     /\b(?:termino|termtno)\s+(?:2|ii|dos)\b/.test(norm) ||
     /\b(?:2\s*do|2\s*da|segundo|ii)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
     /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:segundo|2\s*do|2\s*da|2|ii|dos)\b/.test(norm) ||
-    /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText)
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:2|ii|2pao|2t)\b/i.test(combinedText) ||
+    /\bpao\s*(?:2|ii|dos)\b/.test(norm)
   ) {
     return { term: "2PAO", detected: true };
   }
 
-  // 3. Detección explícita de PAE / 3PAO / 3er Término / 3T / Extraordinario / Verano / Intensivo
+  // 3. Detección explícita de 1PAO / 1er Término / 1T / I Término / I Semestre
   if (
-    /\b(?:pae|p\s*a\s*e|intensivo|extraordinario|verano)\b/.test(norm) ||
-    /\b(?:3\s*pao|iii\s*pao|3\s*t|iii\s*t|t\s*3|t\s*iii)\b/.test(norm) ||
-    /\b(?:termino|termtno)\s+(?:3|iii|tres|tercero?)\b/.test(norm) ||
-    /\b(?:3\s*er|3\s*ro|tercer|tercero|iii)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
-    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:tercer|tercero|3\s*er|3\s*ro|3|iii|tres|extraordinario|pae)\b/.test(norm) ||
-    /\b(?:19|20)\d\d\s*[-_./]\s*(?:3|iii|pae|3t)\b/i.test(combinedText)
+    /\b(?:1\s*pao|i\s*pao|1\s*t|i\s*t)\b/.test(norm) ||
+    /\b(?:termino|termtno)\s+(?:1|i|uno)\b/.test(norm) ||
+    /\b(?:1\s*er|1\s*ro|primer|primero|i)\s+(?:termino|termtno|periodo|semestre|pao)\b/.test(norm) ||
+    /\b(?:periodo|termino)\s*[:\.\-]?\s*(?:primer|primero|1\s*er|1\s*ro|1|i|uno)\b/.test(norm) ||
+    /\b(?:19|20)\d\d\s*[-_./]\s*(?:1|i|1pao|1t)\b/i.test(combinedText) ||
+    /\bpao\s*(?:1|i|uno)\b/.test(norm)
   ) {
-    return { term: "PAE", detected: true };
+    return { term: "1PAO", detected: true };
   }
 
-  // 4. Formato postfijo secundario ("pao 1", "pao 2", "pao 3")
-  if (/\bpao\s*(?:1|i|uno)\b/.test(norm)) return { term: "1PAO", detected: true };
-  if (/\bpao\s*(?:2|ii|dos)\b/.test(norm)) return { term: "2PAO", detected: true };
-  if (/\bpao\s*(?:3|iii|tres)\b/.test(norm)) return { term: "PAE", detected: true };
-
-  // 5. Detección por meses del calendario académico ESPOL
+  // 4. Detección por meses del calendario académico ESPOL
   // PAE: Marzo, Abril
   if (/\b(?:marzo|abril)\b/.test(norm)) {
     return { term: "PAE", detected: true };
-  }
-
-  // 1PAO: Mayo, Junio, Julio, Agosto, Septiembre
-  if (/\b(?:mayo|junio|julio|agosto|septiembre|setiembre)\b/.test(norm)) {
-    return { term: "1PAO", detected: true };
   }
 
   // 2PAO: Octubre, Noviembre, Diciembre, Enero, Febrero
@@ -498,15 +491,20 @@ export function detectPeriodTerm(combinedText: string): { term: "1PAO" | "2PAO" 
     return { term: "2PAO", detected: true };
   }
 
-  // 3. Detección por fecha numérica DD/MM/YYYY o YYYY-MM-DD
+  // 1PAO: Mayo, Junio, Julio, Agosto, Septiembre
+  if (/\b(?:mayo|junio|julio|agosto|septiembre|setiembre)\b/.test(norm)) {
+    return { term: "1PAO", detected: true };
+  }
+
+  // 5. Detección por fecha numérica DD/MM/YYYY o YYYY-MM-DD
   const dateNumMatch = combinedText.match(
     /(?:[0-3]?\d[\/\-\.]([0-1]?\d)[\/\-\.](?:19|20)\d\d)|(?:(?:19|20)\d\d[\/\-\.]([0-1]?\d)[\/\-\.][0-3]?\d)/
   );
   if (dateNumMatch) {
     const monthNum = parseInt(dateNumMatch[1] || dateNumMatch[2], 10);
     if (monthNum >= 3 && monthNum <= 4) return { term: "PAE", detected: true };
-    if (monthNum >= 5 && monthNum <= 9) return { term: "1PAO", detected: true };
     if (monthNum >= 10 || monthNum <= 2) return { term: "2PAO", detected: true };
+    if (monthNum >= 5 && monthNum <= 9) return { term: "1PAO", detected: true };
   }
 
   return { term: "1PAO", detected: false };

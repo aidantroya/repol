@@ -379,9 +379,20 @@ export default function UploadPage() {
       const detected = detectDocumentMetadata(currentFile.name, "", subjectOptionsForDetection);
       const initialCategory = detected.confidence.category ? detected.category : "EXAMEN";
       const initialSubcategory = detected.confidence.category ? detected.subcategory : "Parcial";
+      const initialYear = (detected.periodYear && detected.periodYear !== "S/F" && detected.periodYear !== "0")
+        ? detected.periodYear
+        : "S/F";
+      const initialTerm = detected.confidence.periodTerm ? detected.periodTerm : "1PAO";
       const isNormalized = initialCategory === "EXAMEN" || initialCategory === "LECCION" || initialCategory === "TALLER";
-      const initialTitle = isNormalized && detected.suggestedTitle
-        ? detected.suggestedTitle
+      const initialTitle = isNormalized
+        ? generateCleanDocumentTitle({
+            category: initialCategory,
+            subcategory: initialSubcategory,
+            periodYear: initialYear,
+            periodTerm: initialTerm,
+            isSolution: detected.isSolution,
+            originalFilename: cleanName,
+          })
         : (detected.isSolution ? `${cleanName} (Solución)` : cleanName);
 
       const item: UploadQueueItem = {
@@ -395,10 +406,8 @@ export default function UploadPage() {
         category: initialCategory,
         subcategory: initialSubcategory,
         customDescription: "",
-        periodYear: (detected.periodYear && detected.periodYear !== "S/F" && detected.periodYear !== "0")
-          ? detected.periodYear
-          : "S/F",
-        periodTerm: detected.confidence.periodTerm ? detected.periodTerm : "1PAO",
+        periodYear: initialYear,
+        periodTerm: initialTerm,
         isSolution: detected.isSolution,
         fileHash: "",
         isHashing: true,
@@ -454,11 +463,19 @@ export default function UploadPage() {
                 const updatedIsSolution = meta?.isSolution ?? q.isSolution;
                 const isNormalized = updatedCategory === "EXAMEN" || updatedCategory === "LECCION" || updatedCategory === "TALLER";
                 const cleanOrig = (q.originalFilename || item.file?.name || "").replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
-                const updatedTitle = (isNormalized && meta?.suggestedTitle)
-                  ? meta.suggestedTitle
-                  : (!isNormalized && cleanOrig)
+                const updatedTitle = isNormalized
+                  ? generateCleanDocumentTitle({
+                      category: updatedCategory,
+                      subcategory: updatedSubcategory,
+                      periodYear: updatedYear,
+                      periodTerm: updatedTerm,
+                      isSolution: updatedIsSolution,
+                      version: meta?.version,
+                      originalFilename: cleanOrig || q.originalFilename,
+                    })
+                  : cleanOrig
                   ? (updatedIsSolution ? `${cleanOrig} (Solución)` : cleanOrig)
-                  : q.title;
+                  : (meta?.suggestedTitle || q.title);
 
                 return {
                   ...q,
@@ -562,11 +579,23 @@ export default function UploadPage() {
         const folderItems: UploadQueueItem[] = data.items.map((item: DriveFolderChildItem & { detectedMetadata?: DetectedDocumentMetadata }, idx: number) => {
           const meta = item.detectedMetadata || detectDocumentMetadata(`${item.folderPath || ""} ${item.name}`, "", subjectOptionsForDetection);
           const itemCat = meta.category || "EXAMEN";
+          const itemSub = meta.subcategory || "Parcial";
+          const itemYear = (meta.periodYear && meta.periodYear !== "S/F" && meta.periodYear !== "0") ? meta.periodYear : "S/F";
+          const itemTerm = meta.periodTerm || "1PAO";
+          const isSol = !!meta.isSolution;
+          const isNorm = itemCat === "EXAMEN" || itemCat === "LECCION" || itemCat === "TALLER";
           const origDriveName = item.name || `Documento ${idx + 1}`;
           const cleanDriveOrig = origDriveName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
-          const driveTitle = (meta.suggestedTitle && (itemCat === "EXAMEN" || itemCat === "LECCION" || itemCat === "TALLER"))
-            ? meta.suggestedTitle
-            : (meta.isSolution ? `${cleanDriveOrig} (Solución)` : cleanDriveOrig);
+          const driveTitle = isNorm
+            ? generateCleanDocumentTitle({
+                category: itemCat,
+                subcategory: itemSub,
+                periodYear: itemYear,
+                periodTerm: itemTerm,
+                isSolution: isSol,
+                originalFilename: origDriveName,
+              })
+            : (isSol ? `${cleanDriveOrig} (Solución)` : cleanDriveOrig);
 
           return {
             id: `drive-f-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
@@ -577,11 +606,11 @@ export default function UploadPage() {
             description: item.folderPath ? `Carpeta: ${item.folderPath}` : "",
             subjectId: meta.subjectId || "",
             category: itemCat,
-            subcategory: meta.subcategory || "Parcial",
+            subcategory: itemSub,
             customDescription: "",
-            periodYear: (meta.periodYear && meta.periodYear !== "S/F" && meta.periodYear !== "0") ? meta.periodYear : "S/F",
-            periodTerm: meta.periodTerm || "1PAO",
-            isSolution: meta.isSolution,
+            periodYear: itemYear,
+            periodTerm: itemTerm,
+            isSolution: isSol,
             fileHash: item.fileHash,
             isHashing: false,
             duplicateCheck: item.exists
@@ -612,11 +641,22 @@ export default function UploadPage() {
       const meta = data.detectedMetadata || detectDocumentMetadata(data.name || "Documento Drive", "", subjectOptionsForDetection);
       const driveCategory = meta?.category || "EXAMEN";
       const driveSubcategory = meta?.subcategory || "Parcial";
+      const driveYear = (meta?.periodYear && meta?.periodYear !== "S/F" && meta?.periodYear !== "0") ? meta.periodYear : "S/F";
+      const driveTerm = meta?.periodTerm || "1PAO";
+      const driveIsSol = !!meta?.isSolution;
+      const isNorm = driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER";
       const origSingleName = data.name || "Documento Drive";
       const cleanSingleOrig = origSingleName.replace(/\.[^/.]+$/, "").replace(/[_-]+/g, " ").trim();
-      const singleDriveTitle = (meta?.suggestedTitle && (driveCategory === "EXAMEN" || driveCategory === "LECCION" || driveCategory === "TALLER"))
-        ? meta.suggestedTitle
-        : (meta?.isSolution ? `${cleanSingleOrig} (Solución)` : cleanSingleOrig);
+      const singleDriveTitle = isNorm
+        ? generateCleanDocumentTitle({
+            category: driveCategory,
+            subcategory: driveSubcategory,
+            periodYear: driveYear,
+            periodTerm: driveTerm,
+            isSolution: driveIsSol,
+            originalFilename: origSingleName,
+          })
+        : (driveIsSol ? `${cleanSingleOrig} (Solución)` : cleanSingleOrig);
 
       const itemId = `drive-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
       const newItem: UploadQueueItem = {

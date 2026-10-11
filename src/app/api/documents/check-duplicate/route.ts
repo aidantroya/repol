@@ -70,12 +70,12 @@ export async function POST(req: Request) {
       ? await detectDocumentMetadataHybrid(filename, rawExtractedText, allSubjects)
       : null;
 
-    const effectiveSubjectId = subjectId || detectedMetadata?.subjectId || "";
-    const effectiveCategory = category || detectedMetadata?.category || "";
-    const effectiveSubcategory = subcategory || detectedMetadata?.subcategory || "";
-    const effectiveTitle = title || detectedMetadata?.suggestedTitle || "";
-    const effectiveYearNum = parseInt(periodYear || detectedMetadata?.periodYear || "0", 10) || 0;
-    const effectiveTerm = periodTerm || detectedMetadata?.periodTerm || "";
+    const effectiveSubjectId = detectedMetadata?.subjectId || subjectId || "";
+    const effectiveCategory = detectedMetadata?.category || category || "";
+    const effectiveSubcategory = detectedMetadata?.subcategory || subcategory || "";
+    const effectiveTitle = detectedMetadata?.suggestedTitle || title || "";
+    const effectiveYearNum = parseInt(detectedMetadata?.periodYear || periodYear || "0", 10) || 0;
+    const effectiveTerm = detectedMetadata?.periodTerm || periodTerm || "";
 
     // Función auxiliar para verificar si ya existe un examen por nombre / periodo en la misma materia
     async function checkExamDuplicateByName() {
@@ -240,7 +240,6 @@ export async function POST(req: Request) {
 
     // 4. Para actividades que NO son exámenes (Lecciones, Talleres, etc.), si tienen diferente hash pero coinciden en materia, año, periodo y subcategoría, calcular la versión v2, v3, etc.
     let suggestedVersion = 1;
-    let versionedTitle = effectiveTitle;
 
     if (effectiveCategory !== "EXAMEN" && effectiveSubjectId && effectiveSubcategory) {
       const existingSameCategoryDocs = await prisma.document.findMany({
@@ -275,9 +274,13 @@ export async function POST(req: Request) {
         const versions = allMatchingTitles.map((t) => extractVersionFromTitle(t));
         const maxExistingVersion = Math.max(1, ...versions);
         suggestedVersion = maxExistingVersion + 1;
-        versionedTitle = formatVersionedTitle(effectiveTitle, suggestedVersion);
       }
     }
+
+    const baseTitle = detectedMetadata?.suggestedTitle || effectiveTitle;
+    const versionedTitle = (suggestedVersion > 1)
+      ? formatVersionedTitle(baseTitle, suggestedVersion)
+      : baseTitle;
 
     const finalMetadata = detectedMetadata
       ? {
