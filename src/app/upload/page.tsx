@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { 
@@ -363,6 +363,31 @@ export default function UploadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examCheckKey]);
 
+  // Helper reactivo para detectar duplicados por hash dentro de la misma cola de subida.
+  // Marca como duplicado a partir del segundo documento que presente el mismo hash en la lista.
+  const getInQueueDuplicateInfo = useCallback(
+    (item: UploadQueueItem, currentQueue: UploadQueueItem[] = queue) => {
+      if (!item.fileHash) return null;
+      const myIndex = currentQueue.findIndex((q) => q.id === item.id);
+      if (myIndex === -1) return null;
+      const firstIndex = currentQueue.findIndex(
+        (q) => q.fileHash && q.fileHash === item.fileHash
+      );
+      if (firstIndex !== -1 && firstIndex < myIndex) {
+        const orig = currentQueue[firstIndex];
+        const origTitle = orig.title || orig.originalFilename || `Documento #${firstIndex + 1}`;
+        return {
+          isDuplicate: true,
+          firstIndex: firstIndex + 1,
+          originalTitle: origTitle,
+          message: `El mismo documento ya está subido en la cola de subida (coincide con el documento #${firstIndex + 1}: "${origTitle}").`,
+        };
+      }
+      return null;
+    },
+    [queue]
+  );
+
   // Procesar archivos locales soltados o seleccionados
   const handleAddLocalFiles = async (files: FileList | File[]) => {
     const fileArray = Array.from(files);
@@ -447,10 +472,6 @@ export default function UploadPage() {
             const meta = dupRes.detectedMetadata;
 
             setQueue((prev) => {
-              const isDuplicateInQueue = prev.some(
-                (q) => q.id !== item.id && q.fileHash && q.fileHash === calculatedHash
-              );
-
               return prev.map((q) => {
                 if (q.id !== item.id) return q;
 
@@ -489,13 +510,7 @@ export default function UploadPage() {
                   fileHash: calculatedHash,
                   isHashing: false,
                   analyzedByAI: Boolean(meta),
-                  duplicateCheck: isDuplicateInQueue
-                    ? {
-                        exists: true,
-                        type: "IN_QUEUE_DUPLICATE",
-                        message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
-                      }
-                    : dupRes.exists
+                  duplicateCheck: dupRes.exists
                     ? { exists: true, type: dupRes.type, message: dupRes.message }
                     : { exists: false },
                   possibleExamDuplicate: dupRes.possibleExamDuplicate || null,
@@ -506,23 +521,13 @@ export default function UploadPage() {
             const hash = await calculateSHA256(item.file);
             const dupRes = await checkDuplicate(hash, item.subjectId, item.category, item.subcategory);
             setQueue((prev) => {
-              const isDuplicateInQueue = prev.some(
-                (q) => q.id !== item.id && q.fileHash && q.fileHash === hash
-              );
-
               return prev.map((q) =>
                 q.id === item.id
                   ? {
                       ...q,
                       fileHash: hash,
                       isHashing: false,
-                      duplicateCheck: isDuplicateInQueue
-                        ? {
-                            exists: true,
-                            type: "IN_QUEUE_DUPLICATE",
-                            message: "Este documento ya fue añadido en esta misma cola de subida (mismo contenido detectado).",
-                          }
-                        : dupRes.exists
+                      duplicateCheck: dupRes.exists
                         ? { exists: true, type: dupRes.type, message: dupRes.message }
                         : { exists: false },
                     }
@@ -1007,10 +1012,19 @@ export default function UploadPage() {
         continue;
       }
 
+      const inQueueDup = getInQueueDuplicateInfo(item, queue);
+      if (inQueueDup) {
+        updateQueueItem(item.id, {
+          status: "error",
+          errorMessage: "Documento duplicado: el mismo documento ya está subido en la cola de subida.",
+        });
+        continue;
+      }
+
       if (item.duplicateCheck?.exists) {
         updateQueueItem(item.id, {
           status: "error",
-          errorMessage: "Documento duplicado detectado.",
+          errorMessage: item.duplicateCheck.message || "Documento duplicado detectado.",
         });
         continue;
       }
@@ -1460,6 +1474,15 @@ export default function UploadPage() {
               <span className="rounded-full bg-blue-500/10 px-3 py-0.5 text-xs font-semibold text-blue-400 border border-blue-500/20">
                 {queue.filter((q) => q.status === "success").length} de {queue.length} completados
               </span>
+              {queue.filter((q) => getInQueueDuplicateInfo(q) !== null).length > 0 && (
+                <span className="rounded-full bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-400 border border-rose-500/20 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  <span>
+                    {queue.filter((q) => getInQueueDuplicateInfo(q) !== null).length}{" "}
+                    {queue.filter((q) => getInQueueDuplicateInfo(q) !== null).length === 1 ? "duplicado en cola" : "duplicados en cola"}
+                  </span>
+                </span>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -1496,13 +1519,16 @@ export default function UploadPage() {
           <div className="space-y-4">
             {queue.map((item, index) => {
               const isSelected = selectedItemIds.includes(item.id);
+              const inQueueDup = getInQueueDuplicateInfo(item);
+              const isDbDup = Boolean(item.duplicateCheck?.exists);
+
               return (
                 <div
                   key={item.id}
                   className={`relative rounded-2xl border transition-all duration-200 ${
                     item.status === "success"
                       ? "border-emerald-500/30 bg-emerald-950/10"
-                      : item.status === "error"
+                      : item.status === "error" || inQueueDup || isDbDup
                       ? "border-rose-500/40 bg-rose-950/10"
                       : isSelected
                       ? "border-blue-500/60 bg-blue-950/10"
@@ -1590,12 +1616,17 @@ export default function UploadPage() {
                           <Sparkles className="h-3.5 w-3.5 animate-spin" />
                           <span className="hidden sm:inline">Analizando con IA...</span>
                         </span>
-                      ) : item.duplicateCheck?.exists ? (
-                        <span className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-400 border border-rose-500/20">
+                      ) : inQueueDup ? (
+                        <span className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-400 border border-rose-500/20" title={inQueueDup.message}>
                           <AlertTriangle className="h-3.5 w-3.5" />
-                          <span>Duplicado</span>
+                          <span>Documento duplicado</span>
                         </span>
-                      ) : !item.duplicateCheck?.exists && item.possibleExamDuplicate?.exists && item.category === "EXAMEN" ? (
+                      ) : isDbDup ? (
+                        <span className="flex items-center gap-1 rounded-md bg-rose-500/10 px-2 py-1 text-[11px] font-semibold text-rose-400 border border-rose-500/20" title="Existe en la base de datos de RePol">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>Duplicado en RePol</span>
+                        </span>
+                      ) : !isDbDup && item.possibleExamDuplicate?.exists && item.category === "EXAMEN" ? (
                         <span className="flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-400 border border-amber-500/20" title="Posible examen duplicado por nombre o periodo en esta materia">
                           <AlertTriangle className="h-3.5 w-3.5" />
                           <span>Posible Duplicado</span>
@@ -1659,8 +1690,32 @@ export default function UploadPage() {
                     </div>
                   </div>
 
-                  {/* Alerta explícita de Documento Duplicado por Hash */}
-                  {item.duplicateCheck?.exists && (
+                  {/* Alerta explícita de Documento Duplicado dentro de la Cola de Subida */}
+                  {inQueueDup && (
+                    <div className="mt-3 flex items-start justify-between gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 animate-in fade-in duration-150">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                        <div className="space-y-0.5">
+                          <div className="font-bold text-rose-200">
+                            Documento duplicado
+                          </div>
+                          <p className="text-[11px] text-rose-300/90 leading-relaxed">
+                            {inQueueDup.message}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveItem(item.id)}
+                        className="shrink-0 text-[11px] font-semibold text-rose-400 hover:text-rose-200 underline underline-offset-2 transition ml-2"
+                      >
+                        Quitar de la cola
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Alerta explícita de Documento Duplicado por Hash en la plataforma RePol */}
+                  {!inQueueDup && isDbDup && (
                     <div className="mt-3 flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-300 animate-in fade-in duration-150">
                       <AlertTriangle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
                       <div className="space-y-0.5">
@@ -1668,7 +1723,7 @@ export default function UploadPage() {
                           Este documento ya existe en la plataforma RePol
                         </div>
                         <p className="text-[11px] text-rose-300/90 leading-relaxed">
-                          {item.duplicateCheck.message || "El contenido de este archivo coincide exactamente con un documento ya existente en el repositorio o en moderación."}
+                          {item.duplicateCheck?.message || "El contenido de este archivo coincide exactamente con un documento ya existente en el repositorio o en moderación."}
                         </p>
                       </div>
                     </div>
