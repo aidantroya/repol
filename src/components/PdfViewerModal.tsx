@@ -85,10 +85,10 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
   );
 
   const modalContent = (
-    <div className="fixed inset-0 z-[99999] flex h-screen w-screen flex-col bg-zinc-950 animate-in fade-in duration-150 select-none">
+    <div className="repol-modal-root fixed inset-0 z-[99999] flex h-screen w-screen flex-col bg-zinc-950 animate-in fade-in duration-150 select-none print:static print:block print:h-auto print:w-full print:bg-white print:overflow-visible print:z-auto print:animate-none">
       
-      {/* Barra superior de controles a pantalla completa */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 sm:px-6 z-20">
+      {/* Barra superior de controles a pantalla completa (Oculta al imprimir) */}
+      <div className="notebook-no-print flex h-14 shrink-0 items-center justify-between border-b border-zinc-800 bg-zinc-900/95 px-4 sm:px-6 z-20 print:hidden">
         <div className="flex items-center gap-3 truncate mr-4">
           
           {/* Botón de Volver al Catálogo */}
@@ -194,7 +194,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
 
       {/* Panel desplegable de archivos complementarios / anexos */}
       {hasAttachments && showAttachments && (
-        <div className="border-b border-zinc-800 bg-zinc-900/95 p-3 sm:px-6 animate-in slide-in-from-top-2 duration-150 z-20">
+        <div className="notebook-no-print border-b border-zinc-800 bg-zinc-900/95 p-3 sm:px-6 animate-in slide-in-from-top-2 duration-150 z-20 print:hidden">
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
               <Paperclip className="h-3.5 w-3.5" />
@@ -244,7 +244,7 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
       )}
 
       {/* Visor: Si es Jupyter Notebook (.ipynb), renderizar visor nativo interactivo; de lo contrario, el iframe para PDF */}
-      <div className="relative flex-1 w-full h-full bg-zinc-950 overflow-hidden">
+      <div className="repol-viewer-container relative flex-1 w-full h-full bg-zinc-950 overflow-hidden print:static print:block print:h-auto print:w-full print:bg-white print:overflow-visible">
         {isJupyterNotebook ? (
           <JupyterNotebookViewer
             fileUrl={doc.fileUrl}
@@ -275,8 +275,8 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
         )}
       </div>
 
-      {/* Barra inferior compacta con metadatos del documento */}
-      <div className="flex h-9 shrink-0 items-center justify-between border-t border-zinc-800 bg-zinc-900/90 px-4 sm:px-6 text-xs text-zinc-400 z-20">
+      {/* Barra inferior compacta con metadatos del documento (Oculta al imprimir) */}
+      <div className="notebook-no-print flex h-9 shrink-0 items-center justify-between border-t border-zinc-800 bg-zinc-900/90 px-4 sm:px-6 text-xs text-zinc-400 z-20 print:hidden">
         <div className="flex items-center gap-2 truncate">
           <span className="font-semibold text-zinc-200">{doc.subject.name}</span>
           <span className="text-zinc-500">({doc.subject.code})</span>

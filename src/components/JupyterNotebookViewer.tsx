@@ -375,6 +375,10 @@ export function JupyterNotebookViewer({
   };
 
   const handlePrintToPdf = () => {
+    const printArea = document.querySelector(".notebook-print-area");
+    if (printArea) {
+      printArea.scrollTop = 0;
+    }
     window.print();
   };
 
@@ -414,58 +418,158 @@ export function JupyterNotebookViewer({
   const kernelName = notebook.metadata?.kernelspec?.display_name || notebook.metadata?.language_info?.name || "Python 3";
 
   return (
-    <div className="relative flex flex-col h-full w-full bg-zinc-950 overflow-hidden">
-      {/* Estilos para impresión nativa en PDF de alta fidelidad */}
+    <div className="notebook-viewer-root relative flex flex-col h-full w-full bg-zinc-950 overflow-hidden print:static print:block print:h-auto print:w-full print:bg-white print:overflow-visible">
+      {/* Estilos para impresión nativa en PDF de alta fidelidad con paginación fluida */}
       <style jsx global>{`
         @media print {
-          body {
-            overflow: visible !important;
-            background: white !important;
-            color: black !important;
+          @page {
+            size: letter portrait;
+            margin: 15mm 12mm 15mm 12mm;
           }
-          .notebook-no-print {
+
+          /* 1. Resetear html, body y contenedores principales */
+          html, body {
+            overflow: visible !important;
+            height: auto !important;
+            min-height: 100% !important;
+            width: 100% !important;
+            position: static !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          /* 2. Ocultar absolutamente todo en el body excepto el modal */
+          body > *:not(.repol-modal-root) {
             display: none !important;
           }
-          .notebook-print-area {
+
+          /* 3. Desactivar position fixed y scroll en el árbol del modal */
+          .repol-modal-root,
+          .repol-viewer-container,
+          .notebook-viewer-root {
             position: static !important;
+            display: block !important;
             width: 100% !important;
             height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
             overflow: visible !important;
-            background: white !important;
-            color: black !important;
+            background: #ffffff !important;
             padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+            z-index: auto !important;
           }
+
+          /* 4. Ocultar barras de herramientas, botones y elementos no imprimibles */
+          .notebook-no-print,
+          .notebook-no-print * {
+            display: none !important;
+            visibility: hidden !important;
+          }
+
+          /* 5. Área de impresión de celdas */
+          .notebook-print-area {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          /* 6. Cada celda del Notebook no se debe cortar a la mitad ni superponer */
           .notebook-cell-card {
+            position: static !important;
+            display: block !important;
+            width: 100% !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            break-inside: avoid-page !important;
+            margin-bottom: 14px !important;
             border: 1px solid #cbd5e1 !important;
+            border-radius: 8px !important;
             background: #ffffff !important;
             color: #0f172a !important;
             box-shadow: none !important;
-            break-inside: avoid;
-            margin-bottom: 12px !important;
+            overflow: visible !important;
           }
+
+          /* 7. Bloques de código con fondo claro y letra legible */
           .notebook-code-block {
             background: #f8fafc !important;
             border: 1px solid #e2e8f0 !important;
+            border-radius: 6px !important;
             color: #0f172a !important;
+            white-space: pre-wrap !important;
+            word-break: break-word !important;
+            overflow: visible !important;
           }
+
+          .notebook-code-block pre,
+          .notebook-code-block code {
+            color: #0f172a !important;
+            background: transparent !important;
+            white-space: pre-wrap !important;
+          }
+
+          /* 8. Textos y encabezados Markdown */
           .notebook-markdown-block,
           .notebook-markdown-block p,
           .notebook-markdown-block h1,
           .notebook-markdown-block h2,
           .notebook-markdown-block h3,
-          .notebook-markdown-block span {
+          .notebook-markdown-block span,
+          .notebook-markdown-block li,
+          .notebook-markdown-block strong,
+          .notebook-markdown-block em,
+          .notebook-markdown-block table {
             color: #0f172a !important;
           }
+
+          .notebook-markdown-block table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+
+          .notebook-markdown-block th,
+          .notebook-markdown-block td {
+            border: 1px solid #cbd5e1 !important;
+            padding: 6px 10px !important;
+            color: #0f172a !important;
+          }
+
+          /* 9. Bloques de salida y gráficos */
           .notebook-output-block {
             background: #ffffff !important;
             border-left: 3px solid #94a3b8 !important;
             color: #0f172a !important;
+            overflow: visible !important;
+          }
+
+          img {
+            max-width: 100% !important;
+            height: auto !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
           }
         }
       `}</style>
 
       {/* Barra de herramientas específica del Notebook (Oculta al imprimir) */}
-      <div className="notebook-no-print flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs shrink-0 z-10 backdrop-blur-sm">
+      <div className="notebook-no-print flex flex-wrap items-center justify-between gap-3 border-b border-zinc-800 bg-zinc-900/90 px-4 py-2 text-xs shrink-0 z-10 backdrop-blur-sm print:hidden">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1.5 rounded-md bg-amber-500/10 px-2 py-0.5 text-[11px] font-bold text-amber-400 border border-amber-500/20">
             <Code2 className="h-3.5 w-3.5" />
@@ -503,7 +607,15 @@ export function JupyterNotebookViewer({
       </div>
 
       {/* Contenedor con scroll para las celdas del Notebook */}
-      <div className="notebook-print-area flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 max-w-5xl mx-auto w-full select-text">
+      <div className="notebook-print-area flex-1 overflow-y-auto p-4 sm:p-6 md:p-8 space-y-4 max-w-5xl mx-auto w-full select-text print:static print:block print:h-auto print:w-full print:max-w-none print:p-0 print:m-0 print:overflow-visible">
+        {/* Encabezado visible únicamente al imprimir / guardar en PDF */}
+        <div className="hidden print:block mb-6 border-b border-zinc-300 pb-3">
+          <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+          <p className="text-xs text-slate-600 mt-1">
+            Jupyter Notebook • {kernelName} • {cells.length} celdas {fileSize ? `• ${formatBytes(fileSize)}` : ""}
+          </p>
+        </div>
+
         {cells.map((cell, cellIdx) => {
           const sourceText = getCellSourceText(cell.source);
           if (!sourceText.trim() && (!cell.outputs || cell.outputs.length === 0)) {
