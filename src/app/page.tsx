@@ -380,6 +380,20 @@ export default function HomePage() {
                     }
                   } else if (isOleDoc) {
                     targetFilename = targetFilename.replace(/\.pdf$/i, ".doc");
+                  } else {
+                    const textSample = new TextDecoder("utf-8", { fatal: false }).decode(headerBytes);
+                    if (textSample.includes('"cells"') && textSample.includes('"nbformat"')) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".ipynb");
+                    } else if (
+                      textSample.includes("#!/usr/bin/env python") ||
+                      textSample.includes("import ") ||
+                      textSample.includes("def ") ||
+                      textSample.includes("print(")
+                    ) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".py");
+                    } else if (textSample.toLowerCase().includes("select ") || textSample.toLowerCase().includes("create table")) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".sql");
+                    }
                   }
                 } else if (isPdf && !targetFilename.toLowerCase().endsWith(".pdf")) {
                   targetFilename = targetFilename.replace(/\.[a-zA-Z0-9]+$/i, "") + ".pdf";

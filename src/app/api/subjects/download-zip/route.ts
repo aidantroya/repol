@@ -160,18 +160,34 @@ export async function GET(req: Request) {
           doc.fileUrl.includes("drive.google.com");
 
         const effectiveTitle = doc.title || "Documento";
-        const effectiveMime = doc.mimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+        const keyLower = (doc.storageKey || doc.fileUrl || "").toLowerCase();
+        let detectedMime = doc.mimeType;
+        if (keyLower.endsWith(".ipynb")) detectedMime = "application/x-ipynb+json";
+        else if (keyLower.endsWith(".py")) detectedMime = "text/x-python";
+        else if (keyLower.endsWith(".sql")) detectedMime = "text/x-sql";
+        else if (keyLower.endsWith(".docx")) detectedMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        else if (keyLower.endsWith(".pptx")) detectedMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+        else if (keyLower.endsWith(".xlsx")) detectedMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+        const effectiveMime = detectedMime || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
         const finalDocName = formatStandardDocumentFileName({
           title: effectiveTitle,
           year: doc.periodYear,
           term: doc.periodTerm,
           subjectCode: subject.code,
           mimeType: effectiveMime,
+          storageKey: doc.storageKey,
+          fileUrl: doc.fileUrl,
         });
 
         const isPdf =
-          effectiveMime.includes("pdf") ||
-          finalDocName.toLowerCase().endsWith(".pdf");
+          (effectiveMime.includes("pdf") || finalDocName.toLowerCase().endsWith(".pdf")) &&
+          !finalDocName.toLowerCase().endsWith(".ipynb") &&
+          !finalDocName.toLowerCase().endsWith(".py") &&
+          !finalDocName.toLowerCase().endsWith(".sql") &&
+          !finalDocName.toLowerCase().endsWith(".docx") &&
+          !finalDocName.toLowerCase().endsWith(".pptx") &&
+          !finalDocName.toLowerCase().endsWith(".xlsx");
 
         if (isGoogleDrive) {
           const driveId =

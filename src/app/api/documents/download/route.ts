@@ -124,15 +124,25 @@ export async function GET(req: Request) {
       }
 
       const effectiveTitle = docTitle || "Documento";
-      const effectiveMime = docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+      const keyLower = (targetKey || docFileUrl || "").toLowerCase();
+      let detectedMime = docMimeType;
+      if (keyLower.endsWith(".ipynb")) detectedMime = "application/x-ipynb+json";
+      else if (keyLower.endsWith(".py")) detectedMime = "text/x-python";
+      else if (keyLower.endsWith(".sql")) detectedMime = "text/x-sql";
+      else if (keyLower.endsWith(".docx")) detectedMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+      else if (keyLower.endsWith(".pptx")) detectedMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+      else if (keyLower.endsWith(".xlsx")) detectedMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+      const effectiveMime = detectedMime || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
       const finalFilename = formatStandardDocumentFileName({
         title: effectiveTitle,
         year: docYear,
         term: docTerm,
         subjectCode: docSubjectCode,
         mimeType: effectiveMime,
+        storageKey: targetKey,
+        fileUrl: docFileUrl,
       });
-
 
       const DEFAULT_WATERMARK_WORKER_URL = "https://repol-pdf-stamper.aidantroya24.workers.dev";
       const watermarkWorkerUrl =
@@ -142,7 +152,7 @@ export async function GET(req: Request) {
 
       // Redirigir la descarga al Worker:
       // Si es PDF, estampará el sello y el enlace oficial.
-      // Si es Word/Office, el Worker inspeccionará los bytes mágicos, corregirá el nombre a .docx y lo enviará intacto.
+      // Si es Python, Jupyter, Word, etc., el Worker inspeccionará los bytes mágicos, corregirá el nombre y lo enviará intacto.
       if (isDownload && watermarkWorkerUrl && mode !== "stream") {
         const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?driveId=${driveFileId}&name=${encodeURIComponent(finalFilename)}`;
         return NextResponse.redirect(workerRedirectUrl, { status: 307 });
@@ -180,13 +190,24 @@ export async function GET(req: Request) {
     // CASO 2: Documento almacenado en CLOUDFLARE R2
     // =========================================================================
     const effectiveTitle = docTitle || targetKey || "documento";
-    const contentType = docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+    const r2KeyLower = (targetKey || "").toLowerCase();
+    let r2DetectedMime = docMimeType;
+    if (r2KeyLower.endsWith(".ipynb")) r2DetectedMime = "application/x-ipynb+json";
+    else if (r2KeyLower.endsWith(".py")) r2DetectedMime = "text/x-python";
+    else if (r2KeyLower.endsWith(".sql")) r2DetectedMime = "text/x-sql";
+    else if (r2KeyLower.endsWith(".docx")) r2DetectedMime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    else if (r2KeyLower.endsWith(".pptx")) r2DetectedMime = "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    else if (r2KeyLower.endsWith(".xlsx")) r2DetectedMime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+    const contentType = r2DetectedMime || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
     const finalFilename = formatStandardDocumentFileName({
       title: effectiveTitle,
       year: docYear,
       term: docTerm,
       subjectCode: docSubjectCode,
       mimeType: contentType,
+      storageKey: targetKey,
+      fileUrl: docFileUrl,
     });
 
     // Enviar una redirección directa (307) a la URL prefirmada de R2 o al Cloudflare Worker.
@@ -200,8 +221,13 @@ export async function GET(req: Request) {
         });
 
         const isPdf =
-          contentType.includes("pdf") ||
-          finalFilename.toLowerCase().endsWith(".pdf");
+          (contentType.includes("pdf") || finalFilename.toLowerCase().endsWith(".pdf")) &&
+          !finalFilename.toLowerCase().endsWith(".ipynb") &&
+          !finalFilename.toLowerCase().endsWith(".py") &&
+          !finalFilename.toLowerCase().endsWith(".sql") &&
+          !finalFilename.toLowerCase().endsWith(".docx") &&
+          !finalFilename.toLowerCase().endsWith(".pptx") &&
+          !finalFilename.toLowerCase().endsWith(".xlsx");
 
         const watermarkWorkerUrl =
           process.env.WATERMARK_WORKER_URL ||

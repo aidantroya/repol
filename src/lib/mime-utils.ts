@@ -298,14 +298,31 @@ export function formatStandardDocumentFileName(params: {
   subjectCode?: string | null;
   mimeType?: string | null;
   buffer?: Buffer | null;
+  storageKey?: string | null;
+  fileUrl?: string | null;
 }): string {
-  const { title, year, term, subjectCode, mimeType, buffer } = params;
+  const { title, year, term, subjectCode, mimeType, buffer, storageKey, fileUrl } = params;
   const yearLabel = year && year > 0 ? `${year}` : "SF";
   const termLabel = term && term.trim() ? term.trim() : "General";
 
-  // Extraer extensión original del título antes de limpiar si existe
+  // 1. Extraer extensión original del título antes de limpiar si existe
   const originalExtMatch = title.match(/\.([a-zA-Z0-9]{2,5})$/);
-  const originalExt = originalExtMatch ? `.${originalExtMatch[1].toLowerCase()}` : null;
+  let originalExt = originalExtMatch ? `.${originalExtMatch[1].toLowerCase()}` : null;
+
+  // 2. Si el título no tenía extensión explícita, inspeccionar storageKey o fileUrl
+  if (!originalExt && (storageKey || fileUrl)) {
+    const keyToInspect = (storageKey || fileUrl || "").split("?")[0].toLowerCase();
+    if (keyToInspect.endsWith(".ipynb")) originalExt = ".ipynb";
+    else if (keyToInspect.endsWith(".py")) originalExt = ".py";
+    else if (keyToInspect.endsWith(".sql")) originalExt = ".sql";
+    else if (keyToInspect.endsWith(".docx")) originalExt = ".docx";
+    else if (keyToInspect.endsWith(".doc")) originalExt = ".doc";
+    else if (keyToInspect.endsWith(".pptx")) originalExt = ".pptx";
+    else if (keyToInspect.endsWith(".ppt")) originalExt = ".ppt";
+    else if (keyToInspect.endsWith(".xlsx")) originalExt = ".xlsx";
+    else if (keyToInspect.endsWith(".xls")) originalExt = ".xls";
+    else if (keyToInspect.endsWith(".zip")) originalExt = ".zip";
+  }
 
   const cleanedTitle = cleanDocumentTitle(title, year, term);
   const codeSuffix = subjectCode && subjectCode.trim() ? `_${subjectCode.trim().replace(/[/\\?%*:|"<>]/g, "_")}` : "";

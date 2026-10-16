@@ -80,8 +80,14 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
     doc.fileUrl?.toLowerCase().includes(".ipynb") ||
     doc.title?.toLowerCase().endsWith(".ipynb") ||
     doc.storageKey?.toLowerCase().includes(".ipynb") ||
-    doc.mimeType?.includes("ipynb") ||
-    doc.originalFilename?.toLowerCase().includes(".ipynb")
+    doc.mimeType?.includes("ipynb")
+  );
+  const isPythonScript = Boolean(
+    (doc.fileUrl?.toLowerCase().includes(".py") ||
+    doc.title?.toLowerCase().endsWith(".py") ||
+    doc.storageKey?.toLowerCase().includes(".py") ||
+    doc.mimeType?.includes("python")) &&
+    !isJupyterNotebook
   );
 
   const modalContent = (
@@ -163,10 +169,18 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
               document.body.removeChild(link);
             }}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition"
-            title={isJupyterNotebook ? "Descargar archivo original .ipynb" : "Descargar documento principal a tu dispositivo"}
+            title={
+              isJupyterNotebook
+                ? "Descargar archivo original .ipynb"
+                : isPythonScript
+                ? "Descargar archivo original .py"
+                : "Descargar documento principal a tu dispositivo"
+            }
           >
             <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">{isJupyterNotebook ? "Descargar (.ipynb)" : "Descargar"}</span>
+            <span className="hidden sm:inline">
+              {isJupyterNotebook ? "Descargar (.ipynb)" : isPythonScript ? "Descargar (.py)" : "Descargar"}
+            </span>
             <span className="text-[10px] opacity-80">({formatBytes(doc.fileSize)})</span>
           </button>
 

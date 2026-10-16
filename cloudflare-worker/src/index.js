@@ -128,6 +128,32 @@ export default {
         } else if (isOle) {
           correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.doc';
           correctedMime = 'application/msword';
+        } else {
+          // Detectar si es un Jupyter Notebook (.ipynb), script Python (.py) o SQL (.sql)
+          const textSample = new TextDecoder('utf-8', { fatal: false }).decode(headerBytes);
+          if (
+            (textSample.includes('"cells"') && textSample.includes('"nbformat"')) ||
+            correctedFilename.toLowerCase().endsWith('.ipynb')
+          ) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.ipynb';
+            correctedMime = 'application/x-ipynb+json';
+          } else if (
+            correctedFilename.toLowerCase().endsWith('.py') ||
+            textSample.includes('#!/usr/bin/env python') ||
+            textSample.includes('import ') ||
+            textSample.includes('def ') ||
+            textSample.includes('print(')
+          ) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.py';
+            correctedMime = 'text/x-python';
+          } else if (
+            correctedFilename.toLowerCase().endsWith('.sql') ||
+            textSample.toLowerCase().includes('select ') ||
+            textSample.toLowerCase().includes('create table')
+          ) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.sql';
+            correctedMime = 'text/x-sql';
+          }
         }
 
         return new Response(pdfBytes, {
