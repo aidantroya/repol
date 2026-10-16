@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft, Flag } from "lucide-react";
+import { Download, ExternalLink, FileText, Paperclip, ChevronDown, ChevronUp, FileCode, ArrowLeft, Flag, Code2 } from "lucide-react";
 import { formatBytes, getCategoryBadgeColor, getCategoryLabel, formatPeriodTerm, formatPeriodYear } from "@/lib/utils";
 import { ReportDocumentModal } from "./ReportDocumentModal";
+import { JupyterNotebookViewer } from "./JupyterNotebookViewer";
 
 export interface AttachmentItem {
   name: string;
@@ -24,6 +25,9 @@ interface PdfViewerModalProps {
     customDescription?: string | null;
     fileUrl: string;
     fileSize: number;
+    storageKey?: string;
+    mimeType?: string;
+    originalFilename?: string;
     attachments?: AttachmentItem[] | null;
     category: "CLASE" | "LECCION" | "TALLER" | "EXAMEN" | "TAREA";
     subcategory: string;
@@ -72,6 +76,13 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
   if (!isOpen || !doc || !mounted) return null;
 
   const hasAttachments = Boolean(doc.attachments && doc.attachments.length > 0);
+  const isJupyterNotebook = Boolean(
+    doc.fileUrl?.toLowerCase().includes(".ipynb") ||
+    doc.title?.toLowerCase().endsWith(".ipynb") ||
+    doc.storageKey?.toLowerCase().includes(".ipynb") ||
+    doc.mimeType?.includes("ipynb") ||
+    doc.originalFilename?.toLowerCase().includes(".ipynb")
+  );
 
   const modalContent = (
     <div className="fixed inset-0 z-[99999] flex h-screen w-screen flex-col bg-zinc-950 animate-in fade-in duration-150 select-none">
@@ -90,8 +101,12 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
             <span>Volver</span>
           </button>
 
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 shrink-0">
-            <FileText className="h-4 w-4" />
+          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+            isJupyterNotebook 
+              ? "bg-amber-500/10 border border-amber-500/20 text-amber-400" 
+              : "bg-blue-500/10 border border-blue-500/20 text-blue-400"
+          } shrink-0`}>
+            {isJupyterNotebook ? <Code2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
           </div>
           <div className="truncate">
             <div className="flex items-center gap-2">
@@ -148,10 +163,10 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
               document.body.removeChild(link);
             }}
             className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition"
-            title="Descargar documento principal a tu dispositivo"
+            title={isJupyterNotebook ? "Descargar archivo original .ipynb" : "Descargar documento principal a tu dispositivo"}
           >
             <Download className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Descargar</span>
+            <span className="hidden sm:inline">{isJupyterNotebook ? "Descargar (.ipynb)" : "Descargar"}</span>
             <span className="text-[10px] opacity-80">({formatBytes(doc.fileSize)})</span>
           </button>
 
@@ -228,18 +243,36 @@ export function PdfViewerModal({ isOpen, onClose, document: doc, onDownload }: P
         </div>
       )}
 
-      {/* Visor Embebido de PDF / Google Drive (Ocupa 100% de la pantalla) */}
+      {/* Visor: Si es Jupyter Notebook (.ipynb), renderizar visor nativo interactivo; de lo contrario, el iframe para PDF */}
       <div className="relative flex-1 w-full h-full bg-zinc-950 overflow-hidden">
-        <iframe
-          src={
-            doc.fileUrl.includes("drive.google.com")
-              ? doc.fileUrl
-              : `${doc.fileUrl}#toolbar=1&navpanes=0&scrollbar=1`
-          }
-          className="h-full w-full border-0 bg-zinc-950"
-          title={doc.title}
-          allow="autoplay"
-        />
+        {isJupyterNotebook ? (
+          <JupyterNotebookViewer
+            fileUrl={doc.fileUrl}
+            title={doc.title}
+            onDownloadOriginal={() => {
+              if (onDownload) onDownload();
+              const downloadUrl = `/api/documents/download?id=${doc.id}&download=true`;
+              const link = document.createElement("a");
+              link.href = downloadUrl;
+              link.setAttribute("download", "");
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+            }}
+            fileSize={doc.fileSize}
+          />
+        ) : (
+          <iframe
+            src={
+              doc.fileUrl.includes("drive.google.com")
+                ? doc.fileUrl
+                : `${doc.fileUrl}#toolbar=1&navpanes=0&scrollbar=1`
+            }
+            className="h-full w-full border-0 bg-zinc-950"
+            title={doc.title}
+            allow="autoplay"
+          />
+        )}
       </div>
 
       {/* Barra inferior compacta con metadatos del documento */}

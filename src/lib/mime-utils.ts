@@ -127,14 +127,24 @@ export function getExtensionFromMimeOrBuffer(
   // Búsqueda por MIME type
   if (mimeType) {
     const cleanMime = mimeType.toLowerCase().split(";")[0].trim();
+    if (cleanMime.includes("ipynb")) {
+      return ".ipynb";
+    }
     if (MIME_TO_EXTENSION[cleanMime]) {
       return MIME_TO_EXTENSION[cleanMime];
     }
   }
 
-  // Heurística de contenido de texto (SQL, Python, JSON, etc.)
+  // Heurística de contenido de texto (Jupyter Notebook, SQL, Python, JSON, etc.)
   if (buffer && buffer.length > 0) {
-    const sample = buffer.subarray(0, 500).toString("utf8").toLowerCase();
+    const sample = buffer.subarray(0, 1000).toString("utf8").toLowerCase();
+    if (
+      sample.includes('"cells"') || 
+      sample.includes('"nbformat"') || 
+      sample.includes('"worksheets"')
+    ) {
+      return ".ipynb";
+    }
     if (
       sample.includes("create table") ||
       sample.includes("drop database") ||
@@ -277,10 +287,18 @@ export function formatStandardDocumentFileName(params: {
   const { title, year, term, subjectCode, mimeType, buffer } = params;
   const yearLabel = year && year > 0 ? `${year}` : "SF";
   const termLabel = term && term.trim() ? term.trim() : "General";
+
+  // Extraer extensión original del título antes de limpiar si existe
+  const originalExtMatch = title.match(/\.([a-zA-Z0-9]{2,5})$/);
+  const originalExt = originalExtMatch ? `.${originalExtMatch[1].toLowerCase()}` : null;
+
   const cleanedTitle = cleanDocumentTitle(title, year, term);
   const codeSuffix = subjectCode && subjectCode.trim() ? `_${subjectCode.trim().replace(/[/\\?%*:|"<>]/g, "_")}` : "";
 
   const baseName = `${yearLabel}_${termLabel}_${cleanedTitle}${codeSuffix}`;
+  if (originalExt && originalExt !== ".pdf") {
+    return `${baseName.replace(/[/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_").trim()}${originalExt}`;
+  }
   return sanitizeFileNameWithExtension(baseName, mimeType, buffer);
 }
 
