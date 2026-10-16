@@ -1,4 +1,5 @@
 import { PDFDocument, rgb, StandardFonts, PDFName, PDFString } from 'pdf-lib';
+import { REPOL_LOGO_BASE64 } from './logo-b64.js';
 
 export default {
   async fetch(request, env, ctx) {
@@ -21,7 +22,7 @@ export default {
     const driveId = url.searchParams.get('driveId');
     const directUrl = url.searchParams.get('url');
     const filename = url.searchParams.get('name') || 'documento.pdf';
-    const siteUrl = url.searchParams.get('siteUrl') || 'https://repol.vercel.app';
+    const siteUrl = env?.SITE_URL || url.searchParams.get('siteUrl') || 'https://repol-ten.vercel.app/';
 
     if (!driveId && !directUrl) {
       return new Response(
@@ -116,6 +117,19 @@ export default {
       const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
       const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
+      // Incrustar el logo oficial de RePol (ícono del libro con degradado azul)
+      let logoImage = null;
+      try {
+        const logoBinary = atob(REPOL_LOGO_BASE64);
+        const logoBytes = new Uint8Array(logoBinary.length);
+        for (let i = 0; i < logoBinary.length; i++) {
+          logoBytes[i] = logoBinary.charCodeAt(i);
+        }
+        logoImage = await pdfDoc.embedPng(logoBytes);
+      } catch (logoErr) {
+        console.warn('No se pudo incrustar el logo PNG, usando fallback gráfico:', logoErr);
+      }
+
       const pages = pdfDoc.getPages();
 
       for (const page of pages) {
@@ -143,26 +157,33 @@ export default {
           borderRadius: 6,
         });
 
-        // 2. Cuadrado redondeado distintivo de RePol (azul/índigo)
-        page.drawRectangle({
-          x: x,
-          y: y,
-          width: badgeSize,
-          height: badgeSize,
-          color: rgb(0.24, 0.44, 0.94),
-          opacity: 0.9,
-          borderRadius: 3.5,
-        });
-
-        // 3. Letra 'R' estilizada en el interior del isotipo
-        page.drawText('R', {
-          x: x + 4.5,
-          y: y + 4,
-          size: 9,
-          font: fontBold,
-          color: rgb(1, 1, 1),
-          opacity: 1,
-        });
+        // 2. Logotipo oficial de RePol (o isotipo fallback)
+        if (logoImage) {
+          page.drawImage(logoImage, {
+            x: x,
+            y: y,
+            width: badgeSize,
+            height: badgeSize,
+          });
+        } else {
+          page.drawRectangle({
+            x: x,
+            y: y,
+            width: badgeSize,
+            height: badgeSize,
+            color: rgb(0.24, 0.44, 0.94),
+            opacity: 0.9,
+            borderRadius: 3.5,
+          });
+          page.drawText('R', {
+            x: x + 4.5,
+            y: y + 4,
+            size: 9,
+            font: fontBold,
+            color: rgb(1, 1, 1),
+            opacity: 1,
+          });
+        }
 
         // 4. Texto descriptivo con opacidad sutil
         page.drawText('Descargado de ', {

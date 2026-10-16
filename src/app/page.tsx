@@ -357,8 +357,37 @@ export default function HomePage() {
             const fileRes = await fetch(fileItem.downloadUrl);
             if (fileRes.ok) {
               const arrayBuf = await fileRes.arrayBuffer();
+              let targetFilename = fileItem.filename;
+
+              // Verificación binaria de integridad de formato por números mágicos
+              if (arrayBuf.byteLength >= 4) {
+                const headerBytes = new Uint8Array(arrayBuf.slice(0, 4000));
+                const isPdf = headerBytes[0] === 0x25 && headerBytes[1] === 0x50 && headerBytes[2] === 0x44 && headerBytes[3] === 0x46; // %PDF
+                const isZipBased = headerBytes[0] === 0x50 && headerBytes[1] === 0x4B && headerBytes[2] === 0x03 && headerBytes[3] === 0x04; // PK.. (DOCX, XLSX, PPTX, ZIP)
+                const isOleDoc = headerBytes[0] === 0xD0 && headerBytes[1] === 0xCF && headerBytes[2] === 0x11 && headerBytes[3] === 0xE0; // DOC / XLS / PPT 97-2003
+
+                if (!isPdf && targetFilename.toLowerCase().endsWith(".pdf")) {
+                  if (isZipBased) {
+                    const sampleStr = new TextDecoder("latin1").decode(headerBytes);
+                    if (sampleStr.includes("word/")) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".docx");
+                    } else if (sampleStr.includes("ppt/")) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".pptx");
+                    } else if (sampleStr.includes("xl/")) {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".xlsx");
+                    } else {
+                      targetFilename = targetFilename.replace(/\.pdf$/i, ".zip");
+                    }
+                  } else if (isOleDoc) {
+                    targetFilename = targetFilename.replace(/\.pdf$/i, ".doc");
+                  }
+                } else if (isPdf && !targetFilename.toLowerCase().endsWith(".pdf")) {
+                  targetFilename = targetFilename.replace(/\.[a-zA-Z0-9]+$/i, "") + ".pdf";
+                }
+              }
+
               const folder = zip.folder(fileItem.folderPath) || zip;
-              folder.file(fileItem.filename, arrayBuf);
+              folder.file(targetFilename, arrayBuf);
             } else {
               console.warn(`Error al descargar ${fileItem.filename}: status ${fileRes.status}`);
             }

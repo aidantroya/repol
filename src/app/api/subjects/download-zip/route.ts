@@ -10,7 +10,8 @@ import {
 import { 
   formatStandardDocumentFileName, 
   cleanDocumentTitle, 
-  sanitizeFileNameWithExtension 
+  sanitizeFileNameWithExtension,
+  getMimeTypeFromFilenameOrBuffer
 } from "@/lib/mime-utils";
 
 function sanitizeFolderName(name: string): string {
@@ -24,6 +25,10 @@ function sanitizeBaseName(name: string): string {
 const CLOUDFLARE_DRIVE_PROXY =
   process.env.NEXT_PUBLIC_DRIVE_PROXY_URL ||
   "https://repol-drive-proxy.aidantroya24.workers.dev";
+
+const WATERMARK_WORKER_URL =
+  process.env.WATERMARK_WORKER_URL ||
+  process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
 
 export const dynamic = "force-dynamic";
 
@@ -153,13 +158,19 @@ export async function GET(req: Request) {
           doc.storageKey.startsWith("gdrive:") ||
           doc.fileUrl.includes("drive.google.com");
 
+        const effectiveTitle = doc.title || "Documento";
+        const effectiveMime = doc.mimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
         const finalDocName = formatStandardDocumentFileName({
-          title: doc.title,
+          title: effectiveTitle,
           year: doc.periodYear,
           term: doc.periodTerm,
           subjectCode: subject.code,
-          mimeType: doc.mimeType,
+          mimeType: effectiveMime,
         });
+
+        const isPdf =
+          effectiveMime.includes("pdf") ||
+          finalDocName.toLowerCase().endsWith(".pdf");
 
         if (isGoogleDrive) {
           const driveId =
@@ -169,7 +180,10 @@ export async function GET(req: Request) {
           if (driveId) {
             // Descarga a través de Cloudflare Worker con cabeceras CORS
             // 0 BYTES consumidos en Vercel, y el navegador puede leer el binario para meterlo al ZIP
-            const workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(driveId)}`;
+            let workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(driveId)}`;
+            if (isPdf && WATERMARK_WORKER_URL) {
+              workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(driveId)}&name=${encodeURIComponent(finalDocName)}`;
+            }
             filesToDownload.push({
               folderPath,
               filename: finalDocName,
@@ -183,10 +197,14 @@ export async function GET(req: Request) {
               responseContentDisposition: `attachment; filename="${encodeURIComponent(finalDocName)}"`,
               responseContentType: doc.mimeType || "application/pdf",
             });
+            let downloadUrl = presignedUrl;
+            if (isPdf && WATERMARK_WORKER_URL) {
+              downloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalDocName)}`;
+            }
             filesToDownload.push({
               folderPath,
               filename: finalDocName,
-              downloadUrl: presignedUrl,
+              downloadUrl,
               source: "r2",
             });
           } catch (e) {
@@ -220,8 +238,13 @@ export async function GET(req: Request) {
               if (attDriveId) {
                 const driveMeta = await getDriveFileMetadata(attDriveId);
                 const baseName = att.name || driveMeta?.name || "Anexo";
-                const attFinalName = sanitizeFileNameWithExtension(baseName, driveMeta?.mimeType || att.mimeType);
-                const workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(attDriveId)}`;
+                const attMime = driveMeta?.mimeType || att.mimeType || getMimeTypeFromFilenameOrBuffer(baseName);
+                const attFinalName = sanitizeFileNameWithExtension(baseName, attMime);
+                const attIsPdf = attMime.includes("pdf") || attFinalName.toLowerCase().endsWith(".pdf");
+                let workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(attDriveId)}`;
+                if (attIsPdf && WATERMARK_WORKER_URL) {
+                  workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(attDriveId)}&name=${encodeURIComponent(attFinalName)}`;
+                }
                 filesToDownload.push({
                   folderPath: attFolderPath,
                   filename: attFinalName,
@@ -231,11 +254,17 @@ export async function GET(req: Request) {
               }
             } else if (att.storageKey) {
               try {
-                const attFinalName = sanitizeFileNameWithExtension(att.name, att.mimeType);
-                const attDownloadUrl = await getPresignedDownloadUrl(att.storageKey, 3600, {
+                const attMime = att.mimeType || getMimeTypeFromFilenameOrBuffer(att.name);
+                const attFinalName = sanitizeFileNameWithExtension(att.name, attMime);
+                const attIsPdf = attMime.includes("pdf") || attFinalName.toLowerCase().endsWith(".pdf");
+                const attPresignedUrl = await getPresignedDownloadUrl(att.storageKey, 3600, {
                   responseContentDisposition: `attachment; filename="${encodeURIComponent(attFinalName)}"`,
-                  responseContentType: att.mimeType || "application/octet-stream",
+                  responseContentType: attMime,
                 });
+                let attDownloadUrl = attPresignedUrl;
+                if (attIsPdf && WATERMARK_WORKER_URL) {
+                  attDownloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(attPresignedUrl)}&name=${encodeURIComponent(attFinalName)}`;
+                }
                 filesToDownload.push({
                   folderPath: attFolderPath,
                   filename: attFinalName,
