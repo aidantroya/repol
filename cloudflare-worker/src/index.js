@@ -98,10 +98,22 @@ export default {
         pdfBytes = await directRes.arrayBuffer();
       }
 
-      // Si no es un PDF válido (no inicia con %PDF), devolver los bytes originales sin modificar
-      // pero garantizando que su extensión y MIME sean los correctos para evitar corromper archivos Word/Office
+      // 1. Detectar si contiene cabecera de PDF (%PDF) en los primeros bytes (incluso si tiene wrapper multipart residual de subidas antiguas)
       const headerBytes = new Uint8Array(pdfBytes.slice(0, 4000));
-      const isPdf = headerBytes[0] === 0x25 && headerBytes[1] === 0x50 && headerBytes[2] === 0x44 && headerBytes[3] === 0x46; // %PDF
+      let pdfStartIndex = -1;
+      for (let i = 0; i <= headerBytes.length - 4; i++) {
+        if (
+          headerBytes[i] === 0x25 && // %
+          headerBytes[i + 1] === 0x50 && // P
+          headerBytes[i + 2] === 0x44 && // D
+          headerBytes[i + 3] === 0x46    // F
+        ) {
+          pdfStartIndex = i;
+          break;
+        }
+      }
+
+      const isPdf = pdfStartIndex !== -1;
 
       if (!isPdf) {
         let correctedFilename = filename;
@@ -163,6 +175,11 @@ export default {
             'Access-Control-Allow-Origin': '*',
           },
         });
+      }
+
+      // Si el archivo tenía datos residuales al inicio (ej. cabeceras de multipart upload), limpiar el buffer para que pdf-lib lo procese limpiamente
+      if (pdfStartIndex > 0) {
+        pdfBytes = pdfBytes.slice(pdfStartIndex);
       }
 
       // 3. Modificar el PDF con pdf-lib
