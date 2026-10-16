@@ -124,6 +124,28 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "ID de archivo de Google Drive no válido" }, { status: 400 });
       }
 
+      const effectiveTitle = docTitle || "Documento";
+      const effectiveMime = docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle);
+      const finalFilename = formatStandardDocumentFileName({
+        title: effectiveTitle,
+        year: docYear,
+        term: docTerm,
+        subjectCode: docSubjectCode,
+        mimeType: effectiveMime,
+      });
+
+      const isPdf =
+        effectiveMime.includes("pdf") ||
+        finalFilename.toLowerCase().endsWith(".pdf");
+
+      const watermarkWorkerUrl = process.env.WATERMARK_WORKER_URL || process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
+
+      // Si es descarga de PDF y existe el Cloudflare Worker configurado, redirigir al Worker para estampar sello gratis con 0 bytes de Vercel
+      if (isDownload && isPdf && watermarkWorkerUrl && mode !== "stream") {
+        const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?driveId=${driveFileId}&name=${encodeURIComponent(finalFilename)}`;
+        return NextResponse.redirect(workerRedirectUrl, { status: 307 });
+      }
+
       // Si no es stream explícito, redirigir directamente al link de descarga de Google Drive
       // Esto consume 0 bytes de Fast Origin Transfer en Vercel
       if (mode !== "stream") {
@@ -131,13 +153,10 @@ export async function GET(req: Request) {
         return NextResponse.redirect(driveDirectUrl, { status: 307 });
       }
 
-      // Obtener metadatos y buffer binario desde Google Drive (solo si se pide stream explícito)
-      const [driveMeta, fileBuffer] = await Promise.all([
-        getDriveFileMetadata(driveFileId),
-        downloadDriveFileBuffer(driveFileId),
-      ]);
+      // Obtener buffer binario desde Google Drive (solo si se pide stream explícito)
+      const fileBufferAsync = await downloadDriveFileBuffer(driveFileId);
 
-      if (!fileBuffer) {
+      if (!fileBufferAsync) {
         console.error("Error al descargar buffer binario desde Google Drive para ID:", driveFileId);
         return NextResponse.json(
           { error: "No se pudo recuperar el archivo desde Google Drive. Asegúrate de que el archivo esté compartido públicamente." },
@@ -145,22 +164,11 @@ export async function GET(req: Request) {
         );
       }
 
-      const effectiveTitle = docTitle || driveMeta?.name || "Documento";
-      const effectiveMime = driveMeta?.mimeType || docMimeType || getMimeTypeFromFilenameOrBuffer(effectiveTitle, fileBuffer);
-      const finalFilename = formatStandardDocumentFileName({
-        title: effectiveTitle,
-        year: docYear,
-        term: docTerm,
-        subjectCode: docSubjectCode,
-        mimeType: effectiveMime,
-        buffer: fileBuffer,
-      });
-
-      return new Response(new Uint8Array(fileBuffer), {
+      return new Response(new Uint8Array(fileBufferAsync), {
         headers: {
           "Content-Type": effectiveMime,
           "Content-Disposition": `${dispositionType}; filename="${encodeURIComponent(finalFilename)}"`,
-          "Content-Length": fileBuffer.length.toString(),
+          "Content-Length": fileBufferAsync.length.toString(),
           "Cache-Control": "public, max-age=86400, stale-while-revalidate=43200",
         },
       });
@@ -179,8 +187,8 @@ export async function GET(req: Request) {
       mimeType: contentType,
     });
 
-    // Enviar una redirección directa (307) a la URL prefirmada de R2.
-    // Esto hace que el navegador descargue directamente desde Cloudflare R2 con 0 costos de egress
+    // Enviar una redirección directa (307) a la URL prefirmada de R2 o al Cloudflare Worker.
+    // Esto hace que el navegador descargue directamente desde Cloudflare con 0 costos de egress
     // y 0 bytes de Fast Origin Transfer en Vercel, salvo que se fuerce mode='stream'.
     if (mode !== "stream") {
       try {
@@ -188,6 +196,19 @@ export async function GET(req: Request) {
           responseContentDisposition: `${dispositionType}; filename="${encodeURIComponent(finalFilename)}"`,
           responseContentType: contentType,
         });
+
+        const isPdf =
+          contentType.includes("pdf") ||
+          finalFilename.toLowerCase().endsWith(".pdf");
+
+        const watermarkWorkerUrl = process.env.WATERMARK_WORKER_URL || process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
+
+        // Si es descarga de PDF y existe el Cloudflare Worker configurado, redirigir al Worker pasándole la URL prefirmada
+        if (isDownload && isPdf && watermarkWorkerUrl) {
+          const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalFilename)}`;
+          return NextResponse.redirect(workerRedirectUrl, { status: 307 });
+        }
+
         return NextResponse.redirect(presignedUrl, { status: 307 });
       } catch (err) {
         console.warn("No se pudo generar presigned download URL para redirección, procediendo con fallback de streaming:", err);
