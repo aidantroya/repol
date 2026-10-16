@@ -99,14 +99,41 @@ export default {
       }
 
       // Si no es un PDF válido (no inicia con %PDF), devolver los bytes originales sin modificar
-      const headerBytes = new Uint8Array(pdfBytes.slice(0, 5));
+      // pero garantizando que su extensión y MIME sean los correctos para evitar corromper archivos Word/Office
+      const headerBytes = new Uint8Array(pdfBytes.slice(0, 4000));
       const isPdf = headerBytes[0] === 0x25 && headerBytes[1] === 0x50 && headerBytes[2] === 0x44 && headerBytes[3] === 0x46; // %PDF
 
       if (!isPdf) {
+        let correctedFilename = filename;
+        let correctedMime = 'application/octet-stream';
+
+        const isZipBased = headerBytes[0] === 0x50 && headerBytes[1] === 0x4B && headerBytes[2] === 0x03 && headerBytes[3] === 0x04; // PK..
+        const isOle = headerBytes[0] === 0xD0 && headerBytes[1] === 0xCF && headerBytes[2] === 0x11 && headerBytes[3] === 0xE0; // DOC/XLS/PPT 97-2003
+
+        if (isZipBased) {
+          const sample = new TextDecoder('latin1').decode(headerBytes);
+          if (sample.includes('word/')) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.docx';
+            correctedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          } else if (sample.includes('ppt/')) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.pptx';
+            correctedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+          } else if (sample.includes('xl/')) {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.xlsx';
+            correctedMime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+          } else {
+            correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.zip';
+            correctedMime = 'application/zip';
+          }
+        } else if (isOle) {
+          correctedFilename = correctedFilename.replace(/\.[a-zA-Z0-9]+$/i, '') + '.doc';
+          correctedMime = 'application/msword';
+        }
+
         return new Response(pdfBytes, {
           headers: {
-            'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename="${encodeURIComponent(filename)}"`,
+            'Content-Type': correctedMime,
+            'Content-Disposition': `attachment; filename="${encodeURIComponent(correctedFilename)}"`,
             'Access-Control-Allow-Origin': '*',
           },
         });

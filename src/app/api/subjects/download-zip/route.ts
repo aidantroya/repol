@@ -28,7 +28,8 @@ const CLOUDFLARE_DRIVE_PROXY =
 
 const WATERMARK_WORKER_URL =
   process.env.WATERMARK_WORKER_URL ||
-  process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
+  process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL ||
+  "https://repol-pdf-stamper.aidantroya24.workers.dev";
 
 export const dynamic = "force-dynamic";
 

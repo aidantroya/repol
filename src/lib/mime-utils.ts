@@ -167,6 +167,21 @@ export function getExtensionFromMimeOrBuffer(
     }
   }
 
+  // Heurística basada en el nombre del documento
+  const lowerName = name.toLowerCase();
+  if (lowerName.includes("word") || lowerName.includes("docx")) {
+    return ".docx";
+  }
+  if (lowerName.includes(".doc")) {
+    return ".doc";
+  }
+  if (lowerName.includes("powerpoint") || lowerName.includes("pptx")) {
+    return ".pptx";
+  }
+  if (lowerName.includes("excel") || lowerName.includes("xlsx")) {
+    return ".xlsx";
+  }
+
   // Default a .pdf para documentos académicos si no se identifica otra cosa
   return ".pdf";
 }

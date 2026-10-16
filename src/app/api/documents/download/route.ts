@@ -133,14 +133,17 @@ export async function GET(req: Request) {
         mimeType: effectiveMime,
       });
 
-      const isPdf =
-        effectiveMime.includes("pdf") ||
-        finalFilename.toLowerCase().endsWith(".pdf");
 
-      const watermarkWorkerUrl = process.env.WATERMARK_WORKER_URL || process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
+      const DEFAULT_WATERMARK_WORKER_URL = "https://repol-pdf-stamper.aidantroya24.workers.dev";
+      const watermarkWorkerUrl =
+        process.env.WATERMARK_WORKER_URL ||
+        process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL ||
+        DEFAULT_WATERMARK_WORKER_URL;
 
-      // Si es descarga de PDF y existe el Cloudflare Worker configurado, redirigir al Worker para estampar sello gratis con 0 bytes de Vercel
-      if (isDownload && isPdf && watermarkWorkerUrl && mode !== "stream") {
+      // Redirigir la descarga al Worker:
+      // Si es PDF, estampará el sello y el enlace oficial.
+      // Si es Word/Office, el Worker inspeccionará los bytes mágicos, corregirá el nombre a .docx y lo enviará intacto.
+      if (isDownload && watermarkWorkerUrl && mode !== "stream") {
         const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?driveId=${driveFileId}&name=${encodeURIComponent(finalFilename)}`;
         return NextResponse.redirect(workerRedirectUrl, { status: 307 });
       }
@@ -200,9 +203,12 @@ export async function GET(req: Request) {
           contentType.includes("pdf") ||
           finalFilename.toLowerCase().endsWith(".pdf");
 
-        const watermarkWorkerUrl = process.env.WATERMARK_WORKER_URL || process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL;
+        const watermarkWorkerUrl =
+          process.env.WATERMARK_WORKER_URL ||
+          process.env.NEXT_PUBLIC_WATERMARK_WORKER_URL ||
+          "https://repol-pdf-stamper.aidantroya24.workers.dev";
 
-        // Si es descarga de PDF y existe el Cloudflare Worker configurado, redirigir al Worker pasándole la URL prefirmada
+        // Si es descarga de PDF, redirigir al Worker pasándole la URL prefirmada
         if (isDownload && isPdf && watermarkWorkerUrl) {
           const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalFilename)}`;
           return NextResponse.redirect(workerRedirectUrl, { status: 307 });
