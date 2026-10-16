@@ -97,7 +97,7 @@ export function DocumentCard({
       const downloadUrl = `/api/documents/download?id=${doc.id}&download=true`;
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.setAttribute("download", `${doc.title.replace(/[^a-zA-Z0-9\s._-]/g, "_")}.pdf`);
+      link.setAttribute("download", "");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

@@ -5,8 +5,7 @@ import { getPresignedDownloadUrl } from "@/lib/s3-r2";
 import { prisma } from "@/lib/prisma";
 import { 
   extractGoogleDriveFileId, 
-  downloadDriveFileBuffer, 
-  getDriveFileMetadata 
+  downloadDriveFileBuffer 
 } from "@/lib/drive-utils";
 import { 
   formatStandardDocumentFileName,

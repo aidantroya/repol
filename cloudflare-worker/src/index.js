@@ -119,23 +119,42 @@ export default {
       const pages = pdfDoc.getPages();
 
       for (const page of pages) {
-        // Coordenadas en la esquina inferior izquierda (con margen seguro)
-        const x = 24;
-        const y = 22;
-        const badgeSize = 16;
+        const cropBox = page.getCropBox() || { x: 0, y: 0 };
+        const originX = cropBox.x || 0;
+        const originY = cropBox.y || 0;
 
-        // Cuadrado redondeado distintivo de RePol (azul/índigo)
+        // Coordenadas en la esquina inferior izquierda con margen respetando cropBox
+        const x = originX + 24;
+        const y = originY + 22;
+        const badgeSize = 16;
+        const pillWidth = 148;
+        const pillHeight = 24;
+
+        // 1. Pastilla protectora blanca con borde suave para máxima legibilidad sobre cualquier fondo
+        page.drawRectangle({
+          x: x - 4,
+          y: y - 4,
+          width: pillWidth,
+          height: pillHeight,
+          color: rgb(1, 1, 1),
+          opacity: 0.95,
+          borderColor: rgb(0.8, 0.85, 0.95),
+          borderWidth: 1,
+          borderRadius: 6,
+        });
+
+        // 2. Cuadrado redondeado distintivo de RePol (azul/índigo)
         page.drawRectangle({
           x: x,
           y: y,
           width: badgeSize,
           height: badgeSize,
           color: rgb(0.24, 0.44, 0.94),
-          opacity: 0.8,
+          opacity: 0.9,
           borderRadius: 3.5,
         });
 
-        // Letra 'R' estilizada en el interior del isotipo
+        // 3. Letra 'R' estilizada en el interior del isotipo
         page.drawText('R', {
           x: x + 4.5,
           y: y + 4,
@@ -145,31 +164,31 @@ export default {
           opacity: 1,
         });
 
-        // Texto descriptivo con opacidad sutil
+        // 4. Texto descriptivo con opacidad sutil
         page.drawText('Descargado de ', {
-          x: x + 20,
+          x: x + 21,
           y: y + 4,
           size: 8.5,
           font: fontRegular,
           color: rgb(0.35, 0.42, 0.52),
-          opacity: 0.8,
+          opacity: 0.85,
         });
 
-        // Nombre de la plataforma en negrita
+        // 5. Nombre de la plataforma en negrita
         page.drawText('RePol', {
-          x: x + 82,
+          x: x + 84,
           y: y + 4,
           size: 8.5,
           font: fontBold,
           color: rgb(0.2, 0.4, 0.9),
-          opacity: 0.95,
+          opacity: 1,
         });
 
-        // Hipervínculo cliqueable interactivo que abarca todo el badge y texto
+        // 6. Hipervínculo cliqueable interactivo que abarca toda la pastilla
         const linkAnnotation = pdfDoc.context.obj({
           Type: 'Annot',
           Subtype: 'Link',
-          Rect: [x - 2, y - 2, x + 120, y + badgeSize + 2],
+          Rect: [x - 4, y - 4, x - 4 + pillWidth, y - 4 + pillHeight],
           Border: [0, 0, 0],
           C: [0, 0, 0],
           A: {
