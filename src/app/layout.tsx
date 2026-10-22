@@ -4,6 +4,11 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/Navbar";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")
+      ? process.env.NEXTAUTH_URL
+      : "https://repol.onrender.com"
+  ),
   title: "RePol - Repositorio Académico Colaborativo",
   description: "Plataforma universitaria para centralizar, organizar y compartir clases, lecciones, talleres y exámenes.",
   icons: {
@@ -15,6 +20,27 @@ export const metadata: Metadata = {
       { url: "/logo-icon.png", sizes: "180x180", type: "image/png" },
     ],
     shortcut: "/logo-icon.png",
+  },
+  openGraph: {
+    title: "RePol - Repositorio Académico Colaborativo",
+    description: "Plataforma universitaria para centralizar, organizar y compartir clases, lecciones, talleres y exámenes.",
+    siteName: "RePol",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "RePol - Repositorio Académico Colaborativo",
+      },
+    ],
+    locale: "es_EC",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "RePol - Repositorio Académico Colaborativo",
+    description: "Plataforma universitaria para centralizar, organizar y compartir clases, lecciones, talleres y exámenes.",
+    images: ["/og-image.png"],
   },
 };
 
