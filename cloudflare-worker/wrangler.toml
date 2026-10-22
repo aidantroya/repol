@@ -4,4 +4,4 @@ compatibility_date = "2024-04-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-SITE_URL = "https://repol-ten.vercel.app/"
+SITE_URL = "https://repol.onrender.com/"

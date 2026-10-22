@@ -199,7 +199,8 @@ export async function GET(req: Request) {
             // 0 BYTES consumidos en Vercel, y el navegador puede leer el binario para meterlo al ZIP
             let workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(driveId)}`;
             if (isPdf && WATERMARK_WORKER_URL) {
-              workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(driveId)}&name=${encodeURIComponent(finalDocName)}`;
+              const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+              workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(driveId)}&name=${encodeURIComponent(finalDocName)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
             }
             filesToDownload.push({
               folderPath,
@@ -216,7 +217,8 @@ export async function GET(req: Request) {
             });
             let downloadUrl = presignedUrl;
             if (isPdf && WATERMARK_WORKER_URL) {
-              downloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalDocName)}`;
+              const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+              downloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalDocName)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
             }
             filesToDownload.push({
               folderPath,
@@ -260,7 +262,8 @@ export async function GET(req: Request) {
                 const attIsPdf = attMime.includes("pdf") || attFinalName.toLowerCase().endsWith(".pdf");
                 let workerProxyUrl = `${CLOUDFLARE_DRIVE_PROXY.replace(/\/$/, "")}?id=${encodeURIComponent(attDriveId)}`;
                 if (attIsPdf && WATERMARK_WORKER_URL) {
-                  workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(attDriveId)}&name=${encodeURIComponent(attFinalName)}`;
+                  const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+                  workerProxyUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?driveId=${encodeURIComponent(attDriveId)}&name=${encodeURIComponent(attFinalName)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
                 }
                 filesToDownload.push({
                   folderPath: attFolderPath,
@@ -280,7 +283,8 @@ export async function GET(req: Request) {
                 });
                 let attDownloadUrl = attPresignedUrl;
                 if (attIsPdf && WATERMARK_WORKER_URL) {
-                  attDownloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(attPresignedUrl)}&name=${encodeURIComponent(attFinalName)}`;
+                  const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+                  attDownloadUrl = `${WATERMARK_WORKER_URL.replace(/\/+$/, "")}?url=${encodeURIComponent(attPresignedUrl)}&name=${encodeURIComponent(attFinalName)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
                 }
                 filesToDownload.push({
                   folderPath: attFolderPath,

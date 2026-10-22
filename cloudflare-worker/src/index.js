@@ -22,7 +22,7 @@ export default {
     const driveId = url.searchParams.get('driveId');
     const directUrl = url.searchParams.get('url');
     const filename = url.searchParams.get('name') || 'documento.pdf';
-    const siteUrl = env?.SITE_URL || url.searchParams.get('siteUrl') || 'https://repol-ten.vercel.app/';
+    const siteUrl = url.searchParams.get('siteUrl') || env?.SITE_URL || 'https://repol.onrender.com/';
 
     if (!driveId && !directUrl) {
       return new Response(

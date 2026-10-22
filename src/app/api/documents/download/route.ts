@@ -154,7 +154,8 @@ export async function GET(req: Request) {
       // Si es PDF, estampará el sello y el enlace oficial.
       // Si es Python, Jupyter, Word, etc., el Worker inspeccionará los bytes mágicos, corregirá el nombre y lo enviará intacto.
       if (isDownload && watermarkWorkerUrl && mode !== "stream") {
-        const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?driveId=${driveFileId}&name=${encodeURIComponent(finalFilename)}`;
+        const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+        const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?driveId=${driveFileId}&name=${encodeURIComponent(finalFilename)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
         return NextResponse.redirect(workerRedirectUrl, { status: 307 });
       }
 
@@ -236,7 +237,8 @@ export async function GET(req: Request) {
 
         // Si es descarga de PDF, redirigir al Worker pasándole la URL prefirmada
         if (isDownload && isPdf && watermarkWorkerUrl) {
-          const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalFilename)}`;
+          const appSiteUrl = process.env.NEXTAUTH_URL || "https://repol.onrender.com/";
+          const workerRedirectUrl = `${watermarkWorkerUrl.replace(/\/+$/, "")}?url=${encodeURIComponent(presignedUrl)}&name=${encodeURIComponent(finalFilename)}&siteUrl=${encodeURIComponent(appSiteUrl)}`;
           return NextResponse.redirect(workerRedirectUrl, { status: 307 });
         }
 
