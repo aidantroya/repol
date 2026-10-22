@@ -6,6 +6,16 @@ import { Navbar } from "@/components/Navbar";
 export const metadata: Metadata = {
   title: "RePol - Repositorio Académico Colaborativo",
   description: "Plataforma universitaria para centralizar, organizar y compartir clases, lecciones, talleres y exámenes.",
+  icons: {
+    icon: [
+      { url: "/logo-icon.svg", type: "image/svg+xml" },
+      { url: "/logo-icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/logo-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/logo-icon.png",
+  },
 };
 
 export default function RootLayout({
