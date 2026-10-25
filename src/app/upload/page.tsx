@@ -986,15 +986,38 @@ export default function UploadPage() {
     const { uploadUrl, key, publicUrl, isMock } = presignedData;
 
     if (!isMock && uploadUrl) {
-      const uploadResult = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type || "application/pdf" },
-      });
+      let uploadOk = false;
+      try {
+        const uploadResult = await fetch(uploadUrl, {
+          method: "PUT",
+          body: file,
+          headers: { "Content-Type": file.type || "application/pdf" },
+        });
 
-      if (!uploadResult.ok) {
-        throw new Error(`Fallo al transferir "${file.name}" a Cloudflare R2.`);
+        if (uploadResult.ok) {
+          uploadOk = true;
+        }
+      } catch (directUploadErr) {
+        console.warn("Fallo en subida directa a R2 (bloqueo CORS en navegador), recurriendo a subida segura vía backend:", directUploadErr);
       }
+
+      // Fallback automático vía backend si la subida directa al bucket fue rechazada por CORS
+      if (!uploadOk) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("key", key);
+
+        const proxyRes = await fetch("/api/upload/direct", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!proxyRes.ok) {
+          const errData = await proxyRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Fallo al transferir "${file.name}" a Cloudflare R2.`);
+        }
+      }
+
       return { fileUrl: publicUrl, storageKey: key };
     }
 
