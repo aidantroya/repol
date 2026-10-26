@@ -15,6 +15,7 @@ import {
   Lightbulb
 } from "lucide-react";
 import { FeedbackModal } from "./FeedbackModal";
+import { NavbarActiveUsersBadge } from "./ActiveUsersWidget";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -50,6 +51,8 @@ export function Navbar() {
 
           {/* Acciones principales & Perfil */}
           <div className="flex items-center gap-3">
+            {/* Contador de estudiantes activos en tiempo real */}
+            <NavbarActiveUsersBadge />
             
             {/* Nivel de contribución si está autenticado */}
             {user && (

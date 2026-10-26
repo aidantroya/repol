@@ -340,3 +340,10 @@ model DocumentDeletionRequest {
   @@index([requestedById])
 }
 
+
+
+model SiteStat {
+  id          String   @id @default("global")
+  totalVisits Int      @default(0)
+  updatedAt   DateTime @updatedAt
+}
