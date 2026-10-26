@@ -347,3 +347,9 @@ model SiteStat {
   totalVisits Int      @default(0)
   updatedAt   DateTime @updatedAt
 }
+
+model VisitedDevice {
+  id        String   @id
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

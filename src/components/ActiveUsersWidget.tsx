@@ -8,76 +8,139 @@ interface AnalyticsData {
   totalVisits: number;
 }
 
-export function useActiveAnalytics() {
-  const [data, setData] = useState<AnalyticsData>({
-    activeUsers: 1,
-    totalVisits: 1,
-  });
+// Estado compartido global en memoria para todas las instancias del hook
+let sharedData: AnalyticsData = { activeUsers: 1, totalVisits: 1 };
+const listeners = new Set<(data: AnalyticsData) => void>();
+let heartbeatInitialized = false;
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
+function setAnalyticsData(newData: AnalyticsData) {
+  sharedData = newData;
+  listeners.forEach((listener) => listener(newData));
+}
 
-    // Obtener o generar identificador de sesión local (único por pestaña/navegador)
-    let sessionId = sessionStorage.getItem("repol_session_id");
-    if (!sessionId) {
-      sessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      sessionStorage.setItem("repol_session_id", sessionId);
+// Helper para obtener o generar el Device ID persistente (LocalStorage + Cookie de 10 años)
+function getPersistentDeviceId(): string {
+  let deviceId = "";
+  try {
+    deviceId = localStorage.getItem("repol_device_id") || "";
+  } catch {}
+
+  if (!deviceId && typeof document !== "undefined") {
+    const match = document.cookie.match(/(?:^|; )repol_device_id=([^;]*)/);
+    if (match && match[1]) {
+      deviceId = decodeURIComponent(match[1]);
     }
+  }
 
-    // Comprobar si es una visita nueva en esta sesión
-    const hasVisited = sessionStorage.getItem("repol_visited_recorded");
-    const isNewVisit = !hasVisited;
+  if (!deviceId) {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      deviceId = `dev_${crypto.randomUUID()}`;
+    } else {
+      deviceId = `dev_${Date.now()}_${Math.random().toString(36).substring(2, 10)}${Math.random().toString(36).substring(2, 10)}`;
+    }
+  }
 
-    const sendHeartbeat = async (firstVisit = false) => {
-      try {
-        const res = await fetch("/api/analytics/heartbeat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId,
-            isNewVisit: firstVisit,
-          }),
+  try {
+    localStorage.setItem("repol_device_id", deviceId);
+  } catch {}
+
+  if (typeof document !== "undefined") {
+    document.cookie = `repol_device_id=${encodeURIComponent(deviceId)}; path=/; max-age=315360000; SameSite=Lax`;
+  }
+
+  return deviceId;
+}
+
+// Helper para comprobar si este dispositivo ya fue registrado previamente
+function isDeviceAlreadyRecorded(): boolean {
+  try {
+    if (localStorage.getItem("repol_device_recorded") === "1") {
+      return true;
+    }
+  } catch {}
+
+  if (typeof document !== "undefined") {
+    const match = document.cookie.match(/(?:^|; )repol_device_recorded=([^;]*)/);
+    if (match && match[1] === "1") {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function markDeviceRecorded(deviceId: string) {
+  try {
+    localStorage.setItem("repol_device_recorded", "1");
+    localStorage.setItem("repol_device_id", deviceId);
+  } catch {}
+
+  if (typeof document !== "undefined") {
+    document.cookie = `repol_device_recorded=1; path=/; max-age=315360000; SameSite=Lax`;
+    document.cookie = `repol_device_id=${encodeURIComponent(deviceId)}; path=/; max-age=315360000; SameSite=Lax`;
+  }
+}
+
+function startGlobalHeartbeat() {
+  if (heartbeatInitialized || typeof window === "undefined") return;
+  heartbeatInitialized = true;
+
+  const deviceId = getPersistentDeviceId();
+  const isNewVisit = !isDeviceAlreadyRecorded();
+
+  const sendHeartbeat = async (recordAsNew: boolean) => {
+    try {
+      const res = await fetch("/api/analytics/heartbeat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          deviceId,
+          isNewVisit: recordAsNew,
+        }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        setAnalyticsData({
+          activeUsers: Math.max(1, result.activeUsers || 1),
+          totalVisits: Math.max(1, result.totalVisits || 1),
         });
 
-        if (res.ok) {
-          const result = await res.json();
-          setData({
-            activeUsers: Math.max(1, result.activeUsers || 1),
-            totalVisits: Math.max(1, result.totalVisits || 1),
-          });
-          if (firstVisit) {
-            sessionStorage.setItem("repol_visited_recorded", "true");
-          }
-        }
-      } catch (err) {
-        // Fallback silencioso en caso de desconexión momentánea
-        console.debug("[Analytics] heartbeat skipped:", err);
+        // Registrar persistentemente en cliente
+        markDeviceRecorded(deviceId);
       }
-    };
+    } catch (err) {
+      console.debug("[Analytics] heartbeat skipped:", err);
+    }
+  };
 
-    // 1. Envío inicial
-    sendHeartbeat(isNewVisit);
+  // 1. Envío inicial (solo isNewVisit=true si el dispositivo NUNCA antes ha sido registrado)
+  sendHeartbeat(isNewVisit);
 
-    // 2. Intervalo regular de 2.5 minutos (150 segundos) para mantener la app despierta
-    const interval = setInterval(() => {
-      // Solo enviar señal si el usuario tiene la pestaña visible para ahorrar recursos
-      if (document.visibilityState === "visible") {
-        sendHeartbeat(false);
-      }
-    }, 150000);
+  // 2. Intervalo periódico de 2.5 min para mantener Render activo (siempre recordAsNew=false)
+  setInterval(() => {
+    if (document.visibilityState === "visible") {
+      sendHeartbeat(false);
+    }
+  }, 150000);
 
-    // 3. Cuando el usuario vuelve a enfocar la pestaña, actualizar inmediatamente
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        sendHeartbeat(false);
-      }
-    };
+  // 3. Al re-enfocar la pestaña
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      sendHeartbeat(false);
+    }
+  });
+}
 
-    document.addEventListener("visibilitychange", handleVisibilityChange);
+export function useActiveAnalytics() {
+  const [data, setData] = useState<AnalyticsData>(sharedData);
 
+  useEffect(() => {
+    startGlobalHeartbeat();
+
+    listeners.add(setData);
     return () => {
-      clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      listeners.delete(setData);
     };
   }, []);
 
