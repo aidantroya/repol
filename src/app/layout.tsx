@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
-import { Navbar } from "@/components/Navbar";
+import { Sidebar } from "@/components/Sidebar";
 import { Footer } from "@/components/Footer";
 
 export const metadata: Metadata = {
@@ -54,9 +54,11 @@ export default function RootLayout({
     <html lang="es" className="dark">
       <body className="bg-zinc-950 font-sans text-zinc-100 min-h-screen flex flex-col antialiased selection:bg-blue-500 selection:text-white">
         <Providers>
-          <Navbar />
+          <Sidebar />
+          <div className="flex-1 flex flex-col pt-14 sm:pt-0 sm:pl-[70px] min-h-screen">
           <main className="flex-1">{children}</main>
-          <Footer />
+            <Footer />
+          </div>
           
           
         </Providers>
