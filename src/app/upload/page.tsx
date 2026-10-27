@@ -31,6 +31,7 @@ import {
   detectDocumentMetadata, 
   generateCleanDocumentTitle, 
   formatVersionedTitle,
+  extractVersionFromTitle,
   DetectedDocumentMetadata, 
   SubjectOption 
 } from "@/lib/metadata-detector";
@@ -112,6 +113,82 @@ export interface UploadQueueItem {
   status: "idle" | "uploading" | "success" | "error";
   errorMessage?: string;
   isExpanded: boolean;
+}
+
+
+/**
+ * Reconcilia los títulos y versiones (v2, v3, etc.) en la cola de subida:
+ * - Aplica ÚNICAMENTE a TALLER y LECCION.
+ * - Para CLASE (guías teóricas, apuntes), TAREA y EXAMEN, limpia cualquier sufijo (v2, v3) residual.
+ * - Si hay varias subidas del mismo taller/lección en el mismo período con DIFERENTE hash:
+ *   asigna v1, v2, v3 consecutivamente (o parte desde la versión sugerida por la base de datos).
+ * - Si dos archivos tienen el mismo hash exacto, son duplicados y no incrementan la versión.
+ */
+function reconcileQueueVersions(queueList: UploadQueueItem[]): UploadQueueItem[] {
+  // Identificar versión base inicial por grupo (por si algún archivo ya traía sugerencia de la BD)
+  const groupStartVersions: Record<string, number> = {};
+
+  for (const item of queueList) {
+    const isVersionable = item.category === "TALLER" || item.category === "LECCION";
+    if (!isVersionable || !item.subjectId) continue;
+
+    const groupKey = `${item.subjectId}-${item.category}-${item.subcategory}-${item.periodYear}-${item.periodTerm}-${item.isSolution ? "sol" : "reg"}`;
+    const itemVer = extractVersionFromTitle(item.title);
+    if (!groupStartVersions[groupKey] || itemVer > groupStartVersions[groupKey]) {
+      groupStartVersions[groupKey] = itemVer;
+    }
+  }
+
+  const groupAssigned: Record<
+    string,
+    {
+      currentVersion: number;
+      seenHashes: Map<string, number>;
+    }
+  > = {};
+
+  return queueList.map((item) => {
+    const isVersionable = item.category === "TALLER" || item.category === "LECCION";
+
+    if (!isVersionable) {
+      // Para CLASE, TAREA y EXAMEN, eliminar cualquier sufijo (v2), (v3) accidental
+      const cleanTitle = item.title.replace(/\s*\(v\d+\)/gi, "").trim();
+      return cleanTitle !== item.title ? { ...item, title: cleanTitle } : item;
+    }
+
+    if (!item.subjectId) return item;
+
+    const groupKey = `${item.subjectId}-${item.category}-${item.subcategory}-${item.periodYear}-${item.periodTerm}-${item.isSolution ? "sol" : "reg"}`;
+
+    if (!groupAssigned[groupKey]) {
+      const start = groupStartVersions[groupKey] || 1;
+      groupAssigned[groupKey] = {
+        currentVersion: start,
+        seenHashes: new Map<string, number>(),
+      };
+    }
+
+    const tracker = groupAssigned[groupKey];
+    const hash = item.fileHash || "";
+
+    let assignedVer: number;
+    if (hash && tracker.seenHashes.has(hash)) {
+      // Mismo hash exacto: es duplicado, conserva la misma versión ya asignada
+      assignedVer = tracker.seenHashes.get(hash)!;
+    } else {
+      assignedVer = tracker.currentVersion;
+      if (hash) {
+        tracker.seenHashes.set(hash, assignedVer);
+      }
+      tracker.currentVersion += 1;
+    }
+
+    // Formatear el título del taller/lección con la versión asignada
+    const cleanBase = item.title.replace(/\s*\(v\d+\)/gi, "").trim();
+    const versionedTitle = formatVersionedTitle(cleanBase, assignedVer);
+
+    return versionedTitle !== item.title ? { ...item, title: versionedTitle } : item;
+  });
 }
 
 export default function UploadPage() {
@@ -472,7 +549,7 @@ export default function UploadPage() {
             const meta = dupRes.detectedMetadata;
 
             setQueue((prev) => {
-              return prev.map((q) => {
+              const updatedList = prev.map((q) => {
                 if (q.id !== item.id) return q;
 
                 // Re-alimentar automáticamente los datos si el servidor extrajo más certeza del PDF/Word
@@ -516,6 +593,7 @@ export default function UploadPage() {
                   possibleExamDuplicate: dupRes.possibleExamDuplicate || null,
                 };
               });
+              return reconcileQueueVersions(updatedList);
             });
           } else {
             const hash = await calculateSHA256(item.file);
@@ -637,7 +715,7 @@ export default function UploadPage() {
           };
         });
 
-        setQueue((prev) => [...prev, ...folderItems]);
+        setQueue((prev) => reconcileQueueVersions([...prev, ...folderItems]));
         setInputDriveUrl("");
         return;
       }
@@ -754,9 +832,16 @@ export default function UploadPage() {
       }
     }
 
-    updateQueueItem(item.id, {
-      ...updates,
-      title: updates.title !== undefined ? updates.title : newTitle,
+    setQueue((prev) => {
+      const updated = prev.map((q) => {
+        if (q.id !== item.id) return q;
+        return {
+          ...q,
+          ...updates,
+          title: updates.title !== undefined ? updates.title : newTitle,
+        };
+      });
+      return reconcileQueueVersions(updated);
     });
   };
 
@@ -925,20 +1010,8 @@ export default function UploadPage() {
         };
       });
 
-      // Auto-versionar títulos para ítems que no sean exámenes si comparten los mismos metadatos en la cola con contenido diferente
-      const groupCounts: Record<string, number> = {};
-      return updatedList.map((item) => {
-        if (item.category === "EXAMEN" || !item.subjectId) return item;
-        const groupKey = `${item.subjectId}-${item.category}-${item.subcategory}-${item.periodYear}-${item.periodTerm}`;
-        const currentCount = (groupCounts[groupKey] || 0) + 1;
-        groupCounts[groupKey] = currentCount;
-
-        if (currentCount > 1) {
-          const versioned = formatVersionedTitle(item.title, currentCount);
-          return { ...item, title: versioned };
-        }
-        return item;
-      });
+      // Reconciliar versiones únicamente para Talleres y Lecciones, preservando Clases y Tareas sin sufijo v2/v3
+      return reconcileQueueVersions(updatedList);
     });
 
     const count = targetIds.size;

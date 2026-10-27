@@ -226,13 +226,17 @@ export function generateCleanDocumentTitle(metadata: {
       .replace(/\s+/g, " ")
       .trim();
 
-  // Si no hay nombre original o era un nombre genérico de examen, usar la subcategoría
-  const isGenericExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(cleanOriginal);
-  const base = (!cleanOriginal || isGenericExam)
-    ? `${metadata.subcategory || "Documento"}${solSuffix}`.trim()
-    : `${cleanOriginal}${solSuffix}`.trim();
+  // Limpiar cualquier residuo de versión accidental que pudiera tener
+  const cleanedNoVersion = cleanOriginal.replace(/\s*\(v\d+\)/gi, "").trim();
 
-  return formatVersionedTitle(base, versionNum);
+  // Si no hay nombre original o era un nombre genérico de examen, usar la subcategoría
+  const isGenericExam = /^examen\s+(?:parcial|final|mejoramiento)/i.test(cleanedNoVersion);
+  const base = (!cleanedNoVersion || isGenericExam)
+    ? `${metadata.subcategory || "Documento"}${solSuffix}`.trim()
+    : `${cleanedNoVersion}${solSuffix}`.trim();
+
+  // Para CLASE y TAREA NUNCA se agregan sufijos de versión (v2, v3, etc.)
+  return base;
 }
 
 /**

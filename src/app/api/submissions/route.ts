@@ -164,10 +164,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Para actividades que NO son exámenes (Lecciones, Talleres, etc.), asignar versión v2, v3 si ya existen documentos previos del mismo periodo
+    // 3. Versionamiento incremental (v2, v3, etc.) ÚNICAMENTE para Talleres y Lecciones
+    const isVersionableCategory = category === "LECCION" || category === "TALLER";
     let finalTitle = String(title).trim();
 
-    if (category !== "EXAMEN") {
+    if (isVersionableCategory) {
       const existingMatchingDocs = await prisma.document.findMany({
         where: {
           subjectId,
@@ -176,7 +177,7 @@ export async function POST(req: Request) {
           periodYear: parsedYear,
           periodTerm: cleanTerm,
         },
-        select: { title: true },
+        select: { title: true, fileHash: true },
       });
 
       const existingMatchingSubs = await prisma.submission.findMany({
@@ -188,12 +189,13 @@ export async function POST(req: Request) {
           periodTerm: cleanTerm,
           status: "PENDING",
         },
-        select: { title: true },
+        select: { title: true, fileHash: true },
       });
 
+      // Considerar documentos existentes con DIFERENTE hash del mismo taller/lección
       const allMatchingTitles = [
-        ...existingMatchingDocs.map((d) => d.title),
-        ...existingMatchingSubs.map((s) => s.title),
+        ...existingMatchingDocs.filter((d) => d.fileHash !== fileHash).map((d) => d.title),
+        ...existingMatchingSubs.filter((s) => s.fileHash !== fileHash).map((s) => s.title),
       ];
 
       if (allMatchingTitles.length > 0) {
@@ -205,8 +207,15 @@ export async function POST(req: Request) {
         if (currentTitleVersion <= 1) {
           const nextVersion = maxExistingVersion + 1;
           finalTitle = formatVersionedTitle(finalTitle, nextVersion);
+        } else if (versions.includes(currentTitleVersion)) {
+          // Si ya existía esta misma versión con otro hash, avanzar a la siguiente
+          const nextVersion = maxExistingVersion + 1;
+          finalTitle = formatVersionedTitle(finalTitle, nextVersion);
         }
       }
+    } else {
+      // Para CLASE (guías teóricas, apuntes), TAREA y EXAMEN, asegurar que nunca lleven sufijos v2, v3
+      finalTitle = finalTitle.replace(/\s*\(v\d+\)/gi, "").trim();
     }
 
     const submission = await prisma.submission.create({

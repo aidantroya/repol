@@ -238,10 +238,12 @@ export async function POST(req: Request) {
     // 3. Verificación especial de examen duplicado por nombre/periodo (solo para exámenes)
     const possibleExamDuplicate = await checkExamDuplicateByName();
 
-    // 4. Para actividades que NO son exámenes (Lecciones, Talleres, etc.), si tienen diferente hash pero coinciden en materia, año, periodo y subcategoría, calcular la versión v2, v3, etc.
+    // 4. Versionamiento incremental (v2, v3, etc.) ÚNICAMENTE para Talleres y Lecciones
+    // Si tienen diferente hash pero coinciden en materia, subcategoría y periodo
+    const isVersionableCategory = effectiveCategory === "TALLER" || effectiveCategory === "LECCION";
     let suggestedVersion = 1;
 
-    if (effectiveCategory !== "EXAMEN" && effectiveSubjectId && effectiveSubcategory) {
+    if (isVersionableCategory && effectiveSubjectId && effectiveSubcategory) {
       const existingSameCategoryDocs = await prisma.document.findMany({
         where: {
           subjectId: effectiveSubjectId,
@@ -250,7 +252,7 @@ export async function POST(req: Request) {
           periodYear: effectiveYearNum,
           periodTerm: effectiveTerm || undefined,
         },
-        select: { title: true },
+        select: { title: true, fileHash: true },
       });
 
       const existingSameCategorySubs = await prisma.submission.findMany({
@@ -262,12 +264,13 @@ export async function POST(req: Request) {
           periodTerm: effectiveTerm || undefined,
           status: "PENDING",
         },
-        select: { title: true },
+        select: { title: true, fileHash: true },
       });
 
+      // Considerar documentos existentes con diferente hash (los de igual hash ya salieron por duplicados)
       const allMatchingTitles = [
-        ...existingSameCategoryDocs.map((d) => d.title),
-        ...existingSameCategorySubs.map((s) => s.title),
+        ...existingSameCategoryDocs.filter((d) => d.fileHash !== fileHash).map((d) => d.title),
+        ...existingSameCategorySubs.filter((s) => s.fileHash !== fileHash).map((s) => s.title),
       ];
 
       if (allMatchingTitles.length > 0) {
@@ -278,15 +281,23 @@ export async function POST(req: Request) {
     }
 
     const baseTitle = detectedMetadata?.suggestedTitle || effectiveTitle;
-    const versionedTitle = (suggestedVersion > 1)
-      ? formatVersionedTitle(baseTitle, suggestedVersion)
-      : baseTitle;
+    let versionedTitle = baseTitle;
+
+    if (isVersionableCategory) {
+      versionedTitle = (suggestedVersion > 1)
+        ? formatVersionedTitle(baseTitle, suggestedVersion)
+        : baseTitle;
+    } else {
+      // Para CLASE (guías teóricas, apuntes), TAREA y EXAMEN, asegurar que nunca lleven sufijos v2, v3
+      versionedTitle = baseTitle.replace(/\s*\(v\d+\)/gi, "").trim();
+      suggestedVersion = 1;
+    }
 
     const finalMetadata = detectedMetadata
       ? {
           ...detectedMetadata,
           suggestedTitle: versionedTitle,
-          version: suggestedVersion,
+          version: isVersionableCategory ? suggestedVersion : 1,
         }
       : null;
 
